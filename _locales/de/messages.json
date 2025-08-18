@@ -1,0 +1,33 @@
+{
+	"extName": { "message": "Mailbox Full Alert" },
+	"extShortName": { "message": "MFA" },
+	"extDescription": {
+		"message": "Benachrichtigung, wenn dein Postfach fast voll ist (Quota-Warnung)."
+	},
+	"notifyTitle": { "message": "Speicherwarnung: $1" },
+	"notifyLineUsed": { "message": "Belegt: $1 von $2 ($3%)." },
+	"notifyLineThreshold": { "message": "Du hast die kritische Marke von $1 überschritten." },
+	"optionsTitle": { "message": "Mailbox Full Alert – Einstellungen" },
+	"optionsHeadline": { "message": "Speicherlimit & Warnung pro Konto" },
+	"optionsIntro": { "message": "Gib die Mailboxgröße (GB) und den Auslastungsgrad an, ab dem du gewarnt werden möchtest." },
+	"colActive": { "message": "Aktiv" },
+	"colAccount": { "message": "Konto" },
+	"colUsage": { "message": "Auslastung" },
+	"labelMailboxGB": { "message": "Mailboxgröße (GB)" },
+	"labelThresholdPct": { "message": "Warnen ab" },
+	"labelIntervalHoursShort": { "message": "Prüfe alle:" },
+	"optOff": { "message": "Aus" },
+	"opt5m": { "message": "5 Min." },
+	"opt30m": { "message": "30 Min." },
+	"opt1h": { "message": "1 Std." },
+	"opt3h": { "message": "3 Std." },
+	"opt6h": { "message": "6 Std." },
+	"opt12h": { "message": "12 Std." },
+	"opt24h": { "message": "24 Std." },
+	"phExampleNumber": { "message": "z. B. 1,0" },
+	"btnUpdate": { "message": "Update" },
+	"btnUpdating": { "message": "Aktualisiere …" },
+	"labelUsed": { "message": "belegt" },
+	"labelFreeSpace": { "message": "frei" },
+	"labelClockSuffix": { "message": " Uhr" }
+}

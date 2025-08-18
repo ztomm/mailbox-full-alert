@@ -1,0 +1,33 @@
+{
+	"extName": { "message": "Mailbox Full Alert" },
+	"extShortName": { "message": "MFA" },
+	"extDescription": {
+		"message": "メールボックスの容量がほぼ一杯になったときに通知を受け取ります（クォータ警告）。"
+	},
+	"notifyTitle": { "message": "メールボックス空き容量の警告: $1" },
+	"notifyLineUsed": { "message": "使用量: $1 / $2 ($3%)." },
+	"notifyLineThreshold": { "message": "しきい値 $1 を超えました。" },
+	"optionsTitle": { "message": "Mailbox Full Alert – 設定" },
+	"optionsHeadline": { "message": "アカウント別の容量制限とアラート" },
+	"optionsIntro": { "message": "メールボックス容量 (GB) と、通知したい使用率を設定します。" },
+	"colActive": { "message": "有効" },
+	"colAccount": { "message": "アカウント" },
+	"colUsage": { "message": "使用率" },
+	"labelMailboxGB": { "message": "メールボックスサイズ (GB)" },
+	"labelThresholdPct": { "message": "警告しきい値" },
+	"labelIntervalHoursShort": { "message": "チェック間隔:" },
+	"optOff": { "message": "オフ" },
+	"opt5m": { "message": "5 分" },
+	"opt30m": { "message": "30 分" },
+	"opt1h": { "message": "1 時間" },
+	"opt3h": { "message": "3 時間" },
+	"opt6h": { "message": "6 時間" },
+	"opt12h": { "message": "12 時間" },
+	"opt24h": { "message": "24 時間" },
+	"phExampleNumber": { "message": "例: 1.0" },
+	"btnUpdate": { "message": "更新" },
+	"btnUpdating": { "message": "更新中…" },
+	"labelUsed": { "message": "使用中" },
+	"labelFreeSpace": { "message": "空き" },
+	"labelClockSuffix": { "message": "" }
+}

@@ -1,0 +1,33 @@
+{
+	"extName": { "message": "Mailbox Full Alert" },
+	"extShortName": { "message": "MFA" },
+	"extDescription": {
+		"message": "當您的信箱空間快滿時接收通知（配額警告）。"
+	},
+	"notifyTitle": { "message": "信箱儲存警告：$1" },
+	"notifyLineUsed": { "message": "已用：$1／$2（$3%）。" },
+	"notifyLineThreshold": { "message": "您已超過臨界門檻 $1。" },
+	"optionsTitle": { "message": "Mailbox Full Alert – 設定" },
+	"optionsHeadline": { "message": "依帳戶的儲存限制與警示" },
+	"optionsIntro": { "message": "設定信箱大小（GB）以及需要提醒的使用率。" },
+	"colActive": { "message": "啟用" },
+	"colAccount": { "message": "帳戶" },
+	"colUsage": { "message": "使用率" },
+	"labelMailboxGB": { "message": "郵箱大小 (GB)" },
+	"labelThresholdPct": { "message": "警示門檻" },
+	"labelIntervalHoursShort": { "message": "檢查間隔：" },
+	"optOff": { "message": "關閉" },
+	"opt5m": { "message": "5 分鐘" },
+	"opt30m": { "message": "30 分鐘" },
+	"opt1h": { "message": "1 小時" },
+	"opt3h": { "message": "3 小時" },
+	"opt6h": { "message": "6 小時" },
+	"opt12h": { "message": "12 小時" },
+	"opt24h": { "message": "24 小時" },
+	"phExampleNumber": { "message": "例如：1.0" },
+	"btnUpdate": { "message": "更新" },
+	"btnUpdating": { "message": "正在更新…" },
+	"labelUsed": { "message": "已用" },
+	"labelFreeSpace": { "message": "可用空間" },
+	"labelClockSuffix": { "message": "" }
+}

@@ -1,0 +1,33 @@
+{
+	"extName": { "message": "Mailbox Full Alert" },
+	"extShortName": { "message": "MFA" },
+	"extDescription": {
+		"message": "Otrzymuj powiadomienia, gdy Twoja skrzynka pocztowa jest prawie pełna (ostrzeżenie o limicie)."
+	},
+	"notifyTitle": { "message": "Ostrzeżenie o przestrzeni skrzynki: $1" },
+	"notifyLineUsed": { "message": "Użyto: $1 z $2 ($3%)." },
+	"notifyLineThreshold": { "message": "Przekroczono krytyczny limit $1." },
+	"optionsTitle": { "message": "Mailbox Full Alert – Ustawienia" },
+	"optionsHeadline": { "message": "Limity przechowywania i alerty dla kont" },
+	"optionsIntro": { "message": "Ustaw rozmiar skrzynki (GB) i poziom użycia, przy którym chcesz otrzymywać ostrzeżenia." },
+	"colActive": { "message": "Aktywny" },
+	"colAccount": { "message": "Konto" },
+	"colUsage": { "message": "Wykorzystanie" },
+	"labelMailboxGB": { "message": "Rozmiar skrzynki (GB)" },
+	"labelThresholdPct": { "message": "Ostrzegaj przy" },
+	"labelIntervalHoursShort": { "message": "Sprawdzaj co:" },
+	"optOff": { "message": "Wyłączone" },
+	"opt5m": { "message": "5 min" },
+	"opt30m": { "message": "30 min" },
+	"opt1h": { "message": "1 h" },
+	"opt3h": { "message": "3 h" },
+	"opt6h": { "message": "6 h" },
+	"opt12h": { "message": "12 h" },
+	"opt24h": { "message": "24 h" },
+	"phExampleNumber": { "message": "np. 1.0" },
+	"btnUpdate": { "message": "Aktualizuj" },
+	"btnUpdating": { "message": "Aktualizowanie…" },
+	"labelUsed": { "message": "zajęte" },
+	"labelFreeSpace": { "message": "wolne" },
+	"labelClockSuffix": { "message": "" }
+}

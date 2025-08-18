@@ -1,0 +1,33 @@
+{
+	"extName": { "message": "Mailbox Full Alert" },
+	"extShortName": { "message": "MFA" },
+	"extDescription": {
+		"message": "Posta kutunuz neredeyse dolduğunda bildirim alın (kotа uyarısı)."
+	},
+	"notifyTitle": { "message": "Posta kutusu depolama uyarısı: $1" },
+	"notifyLineUsed": { "message": "Kullanılan: $1 / $2 (%$3)." },
+	"notifyLineThreshold": { "message": "$1 kritik sınırını aştınız." },
+	"optionsTitle": { "message": "Mailbox Full Alert – Ayarlar" },
+	"optionsHeadline": { "message": "Hesap bazında depolama limitleri ve uyarılar" },
+	"optionsIntro": { "message": "Posta kutusu boyutunu (GB) ve hangi kullanımda uyarı almak istediğinizi ayarlayın." },
+	"colActive": { "message": "Etkin" },
+	"colAccount": { "message": "Hesap" },
+	"colUsage": { "message": "Kullanım" },
+	"labelMailboxGB": { "message": "Posta kutusu boyutu (GB)" },
+	"labelThresholdPct": { "message": "Uyarı eşiği" },
+	"labelIntervalHoursShort": { "message": "Kontrol sıklığı:" },
+	"optOff": { "message": "Kapalı" },
+	"opt5m": { "message": "5 dk" },
+	"opt30m": { "message": "30 dk" },
+	"opt1h": { "message": "1 sa" },
+	"opt3h": { "message": "3 sa" },
+	"opt6h": { "message": "6 sa" },
+	"opt12h": { "message": "12 sa" },
+	"opt24h": { "message": "24 sa" },
+	"phExampleNumber": { "message": "ör. 1.0" },
+	"btnUpdate": { "message": "Güncelle" },
+	"btnUpdating": { "message": "Güncelleniyor…" },
+	"labelUsed": { "message": "kullanılan" },
+	"labelFreeSpace": { "message": "boş" },
+	"labelClockSuffix": { "message": "" }
+}

@@ -1,0 +1,195 @@
+<!doctype html>
+<html>
+<head>
+	<meta charset="utf-8" />
+	<title data-i18n="optionsTitle">Mailbox Full Alert – Settings</title>
+	<meta name="viewport" content="width=device-width,initial-scale=1"/>
+	<style>
+		:root { color-scheme: light dark; }
+		body { font: 14px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 24px; }
+		h1 { font-size: 18px; margin: 0 0 12px; }
+		h2 { font-size: 14px; margin: 0 0 12px; }
+		.card { border: 1px solid rgba(0,0,0,.15); border-radius: 12px; padding: 16px; }
+		.card + .card { margin-top: 16px; }
+		.separator { margin-top: 60px; padding-bottom: 40px; border-top: 1px solid rgba(0,0,0,.15); }
+
+		.muted { opacity: .85; font-size: 12px; margin-bottom: 12px; }
+		.over-info { opacity: .85; font-weight: 500; }
+
+		/* Flex "grid": 7 columns, all left-aligned */
+		.grid-wrap { overflow-x: auto; margin-top: 16px; }
+		.grid { min-width: 1100px; }
+
+		.row, .head {
+			display: flex;
+			align-items: center;
+			border-bottom: 1px solid rgba(0,0,0,.08);
+		}
+		.head {
+			font-weight: 700;
+			border-bottom: 1px solid rgba(0,0,0,.15);
+		}
+		.row:last-child { border-bottom: none; }
+
+		.cell { padding: 10px; display: flex; align-items: center; gap: 8px; min-height: 40px; text-align: left; justify-content: flex-start; }
+
+		/* Column widths: Active | Account | Usage% | (detail) used/free/time | Mailbox size | Threshold | Button */
+		.c1 { flex: 0 0 90px;  width: 90px; }
+		.c2 { flex: 0 0 260px; width: 260px; }      /* Account */
+		.c3 { flex: 0 0 160px; width: 160px; }      /* Usage% only */
+		.c4 { flex: 0 0 320px; width: 320px; }      /* "900 MB used, 100 MB free - 18:25 h" */
+		.c5 { flex: 0 0 200px; width: 200px; }      /* Mailbox GB */
+		.c6 { flex: 0 0 180px; width: 180px; }      /* Threshold */
+		.c7 { flex: 1 1 auto;  width: 140px; }      /* Update button area grows */
+
+		.name { font-weight: 600; min-width: 0; }
+		.inline { display: inline-flex; align-items: center; gap: 6px; }
+
+		.usage-pt .pct { font-weight: 700; } /* bold; color set via JS */
+		.usage-detail { white-space: nowrap; }
+
+		label { min-width: 80px; }
+		input[type="number"], input[type="text"], select {
+			width: 140px;
+			padding: 8px 10px;
+			border-radius: 8px;
+			border: 1px solid rgba(0,0,0,.25);
+			box-sizing: border-box;
+		}
+		.suffix { opacity: .8; }
+		.invalid { border-color: #c62828; box-shadow: 0 0 0 2px rgba(198,40,40,.15); }
+		.btn { padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(0,0,0,.25); cursor: pointer; }
+
+		/* --- Responsive grid refinements --- */
+
+		/* Breite ≤ 1600px: Detail-Spalte komplett weg */
+		@media (max-width: 1600px) {
+			.c4 { display: none; }
+		}
+
+		/* ≤ 1400px: alle Felder enger */
+		@media (max-width: 1400px) {
+			.c1 { flex: 0 0 50px;  width: 50px; }
+			.c2 { width: 200px; flex: 0 0 200px; }  /* Konto */
+			.c3 { width: 120px; flex: 0 0 120px; }  /* Auslastung % */
+			.c5 { width: 160px; flex: 0 0 160px; }  /* Mailboxgröße */
+			.c6 { width: 140px; flex: 0 0 140px; }  /* Warnen ab */
+			.c7 { width: 110px; flex: 0 0 110px; }  /* Button */
+		}
+
+		/* ≤ 1100px: noch kompakter */
+		@media (max-width: 1100px) {
+			.c2 { width: 160px; flex: 0 0 160px; }
+			.c3 { width: 100px; flex: 0 0 100px; }
+			.c5 { width: 130px; flex: 0 0 130px; }
+			.c6 { width: 120px; flex: 0 0 120px; }
+			.c7 { width: 100px; flex: 0 0 100px; }
+		}
+
+	</style>
+</head>
+<body>
+	<h1 data-i18n="optionsTitle">Mailbox Full Alert – Settings</h1>
+
+	<!-- Per-account settings -->
+	<div class="card">
+		<h2 data-i18n="optionsHeadline">Per-account storage limits and alerts</h2>
+		<div class="muted" data-i18n="optionsIntro">
+			Set your mailbox size (GB) and at which usage you want to be warned.
+		</div>
+
+		<div class="grid-wrap" role="group" aria-label="Per-account settings">
+			<div class="grid" id="grid">
+				<!-- Header -->
+				<div class="head">
+					<div class="cell c1" data-i18n="colActive">Active</div>
+					<div class="cell c2" data-i18n="colAccount">Account</div>
+					<div class="cell c3" data-i18n="colUsage">Auslastung</div>
+					<div class="cell c4"></div>
+					<div class="cell c5" data-i18n="labelMailboxGB">Mailbox size (GB)</div>
+					<div class="cell c6" data-i18n="labelThresholdPct">Alert at</div>
+					<div class="cell c7"></div>
+				</div>
+
+				<!-- Rows injected here -->
+				<div id="rows"></div>
+			</div>
+		</div>
+
+		<div class="separator"></div>
+
+		<!-- Global interval setting (BOTTOM) -->
+		<div class="inline">
+			<label data-i18n="labelIntervalHoursShort">Check every: </label>
+			<select id="intervalHours" aria-label="Automatic check interval">
+				<option value="off" data-i18n="optOff">Off</option>
+				<option value="5m"  data-i18n="opt5m">5 min</option>
+				<option value="30m" data-i18n="opt30m">30 min</option>
+				<option value="1h"  data-i18n="opt1h">1 h</option>
+				<option value="3h"  data-i18n="opt3h">3 h</option>
+				<option value="6h"  data-i18n="opt6h">6 h</option>
+				<option value="12h" data-i18n="opt12h">12 h</option>
+				<option value="24h" data-i18n="opt24h">24 h</option>
+			</select>
+		</div>
+	</div>
+
+	<!-- Row template -->
+	<template id="row-tpl">
+		<div class="row grid-row">
+			<!-- Active -->
+			<div class="cell c1">
+				<input type="checkbox" class="activeToggle" aria-label="Active account monitoring">
+				<label class="sr-only" style="display:none" data-i18n="colActive">Active</label>
+			</div>
+
+			<!-- Account name -->
+			<div class="cell c2">
+				<div class="name"></div>
+			</div>
+
+			<!-- Usage% (bold, black; red when over threshold) -->
+			<div class="cell c3">
+				<span class="usage-pt">
+					<span class="pct"></span>
+				</span>
+			</div>
+
+			<!-- Detail: "900 MB belegt, 100 MB frei - 18:25 Uhr" -->
+			<div class="cell c4">
+				<span class="usage-detail"></span>
+			</div>
+
+			<!-- Mailbox size (GB) -->
+			<div class="cell c5">
+				<label class="inline">
+					<input class="limit" type="number" min="0" step="0.1"
+								placeholder="" data-i18n-placeholder="phExampleNumber"
+								aria-label="Mailbox size in GB">
+				</label>
+			</div>
+
+			<!-- Threshold (%) -->
+			<div class="cell c6">
+				<label class="inline">
+					<select class="threshold" aria-label="Alert at usage in percent">
+						<option value="50">50%</option>
+						<option value="60">60%</option>
+						<option value="70">70%</option>
+						<option value="80">80%</option>
+						<option value="90">90%</option>
+						<option value="95">95%</option>
+					</select>
+				</label>
+			</div>
+
+			<!-- Update -->
+			<div class="cell c7">
+				<button class="btn saveAndCheckRow" data-i18n="btnUpdate">Update</button>
+			</div>
+		</div>
+	</template>
+
+	<script src="options.js"></script>
+</body>
+</html>

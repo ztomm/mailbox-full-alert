@@ -1,0 +1,33 @@
+{
+	"extName": { "message": "Mailbox Full Alert" },
+	"extShortName": { "message": "MFA" },
+	"extDescription": {
+		"message": "Ontvang een melding wanneer je mailbox bijna vol is (quota-waarschuwing)."
+	},
+	"notifyTitle": { "message": "Opslagwaarschuwing voor postvak: $1" },
+	"notifyLineUsed": { "message": "Gebruikt: $1 van $2 ($3%)." },
+	"notifyLineThreshold": { "message": "Je hebt de kritieke limiet van $1 overschreden." },
+	"optionsTitle": { "message": "Mailbox Full Alert – Instellingen" },
+	"optionsHeadline": { "message": "Opslaglimieten en waarschuwingen per account" },
+	"optionsIntro": { "message": "Stel de grootte van je postvak (GB) en de gebruikswaarde in waarbij je een waarschuwing wilt ontvangen." },
+	"colActive": { "message": "Actief" },
+	"colAccount": { "message": "Account" },
+	"colUsage": { "message": "Gebruik" },
+	"labelMailboxGB": { "message": "Postvakgrootte (GB)" },
+	"labelThresholdPct": { "message": "Waarschuwen bij" },
+	"labelIntervalHoursShort": { "message": "Controleren elke:" },
+	"optOff": { "message": "Uit" },
+	"opt5m": { "message": "5 min" },
+	"opt30m": { "message": "30 min" },
+	"opt1h": { "message": "1 u" },
+	"opt3h": { "message": "3 u" },
+	"opt6h": { "message": "6 u" },
+	"opt12h": { "message": "12 u" },
+	"opt24h": { "message": "24 u" },
+	"phExampleNumber": { "message": "bijv. 1.0" },
+	"btnUpdate": { "message": "Bijwerken" },
+	"btnUpdating": { "message": "Bijwerken…" },
+	"labelUsed": { "message": "gebruikt" },
+	"labelFreeSpace": { "message": "vrij" },
+	"labelClockSuffix": { "message": "" }
+}
