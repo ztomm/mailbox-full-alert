@@ -12,19 +12,25 @@
 *.php text
 *.css text
 *.js text
+*.jsx text
+*.json text
+*.ts text
+*.tsx text
 *.htm text
 *.html text
 *.xml text
+*.yml text
 *.txt text
 *.ini text
 *.inc text
 *.c text
 *.h text
+*.md text
 .htaccess text
 
 # Declare files that will always have CRLF line endings on checkout.
 # windows line-endings
-*.vcproj text eol=crlf
+*.vcxproj text eol=crlf
 *.sln text eol=crlf
 *.cmd text eol=crlf
 *.bat text eol=crlf
@@ -44,8 +50,6 @@
 *.mp4 binary
 *.mp3 binary
 *.flv binary
-*.fla binary
-*.swf binary
 *.gz binary
 *.zip binary
 *.7z binary
@@ -53,12 +57,7 @@
 
 # Documents
 *.doc  diff=astextplain
-*.DOC  diff=astextplain
 *.docx diff=astextplain
-*.DOCX diff=astextplain
 *.dot  diff=astextplain
-*.DOT  diff=astextplain
 *.pdf  diff=astextplain
-*.PDF  diff=astextplain
 *.rtf  diff=astextplain
-*.RTF  diff=astextplain
