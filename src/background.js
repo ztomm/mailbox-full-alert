@@ -22,13 +22,8 @@ const MFA_GLOBAL_INTERVAL_KEY = 'MFA_globalIntervalMin';
 * =========================== */
 
 /** Format bytes to human readable string */
-function formatBytes(bytes) {
-	if (!Number.isFinite(bytes)) return '–';
-	let units = ['B', 'KB', 'MB', 'GB', 'TB'];
-	let n = bytes, i = 0;
-	while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
-	let fixed = n >= 100 ? 0 : n >= 10 ? 1 : 2;
-	return `${n.toFixed(fixed)} ${units[i]}`;
+async function formatBytes(bytes) {
+	return await browser.messengerUtilities.formatFileSize(bytes);
 }
 
 /** Sum sizes of all messages in a folder (handles pagination) */
@@ -93,7 +88,11 @@ async function setGlobalIntervalMin(minutes) {
 
 async function notify(account, used, limit, pctUsed, threshold) {
 	let title = browser.i18n.getMessage('notifyTitle', account.name || account.id);
-	let line1 = browser.i18n.getMessage('notifyLineUsed', [formatBytes(used), formatBytes(limit), pctUsed.toFixed(1)]);
+	let line1 = browser.i18n.getMessage('notifyLineUsed', [
+		await formatBytes(used),
+		await formatBytes(limit),
+		pctUsed.toFixed(1)
+	]);
 	let line2 = browser.i18n.getMessage('notifyLineThreshold', [`${threshold}%`]);
 
 	await browser.notifications.create(`quota-${account.id}-${Date.now()}`, {

@@ -1,6 +1,6 @@
 # Mailbox Full Alert (quota warning)
 
-![Icon](icons/icon-256.png)
+![Icon](src/icons/icon-256.png)
 
 **Get notified when your mailbox space is almost full.**
 
@@ -25,4 +25,4 @@ Since Thunderbird cannot fetch quota information from them, the only reliable op
 
 ---
 
-Download the add-on package fromm [addons.thunderbird.net/mailbox-full-alert](https://addons.thunderbird.net/mailbox-full-alert).
+Download the add-on package fromm [addons.thunderbird.net/mailbox-full-alert](https://addons.thunderbird.net/de/thunderbird/addon/mailbox-full-alert).
