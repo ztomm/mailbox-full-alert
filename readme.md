@@ -2,27 +2,28 @@
 
 ![Icon](src/icons/icon-256.png)
 
-**Get notified when your mailbox space is almost full.**
+**Get notified when your mailbox is almost full.**
 
-Mailbox Full Alert (MFA) is a Thunderbird add-on that monitors mailbox usage and warns you when the configured quota is exceeded.
-
----
-
-## Motivation
-
-Many providers (for example **Gmail**, **Outlook**, and several country-specific providers such as **GMX**) do not report mailbox quota automatically.  
-Since Thunderbird cannot fetch quota information from them, the only reliable option is to measure the used space locally.
+Mailbox Full Alert (MFA) is a Thunderbird add-on that monitors the local mailbox size and alerts you when a configured quota limit is exceeded.
 
 ---
 
-## Features
+Many mail providers, especially free ones, do not make server-side quota information available. Because of this, Thunderbird cannot determine how much space is left on the server. This add-on addresses the issue by letting you manually define a quota per account. It then compares this limit with the actual disk space used by the account locally.
 
-- Quota warning per-account
+**Note:** This add-on works best with IMAP accounts, where the local mailbox storage usually reflects the actual content on the server.
+
+---
+
+Download the add-on package from [addons.thunderbird.net/mailbox-full-alert](https://addons.thunderbird.net/de/thunderbird/addon/mailbox-full-alert).
+
+---
+
+**Features:**
+
+- Per-account quota warning
 - Toolbar icon with badge
 - Options page with details & manual check
 - Configurable auto-check interval
 - Multi-language support
 
 ---
-
-Download the add-on package fromm [addons.thunderbird.net/mailbox-full-alert](https://addons.thunderbird.net/de/thunderbird/addon/mailbox-full-alert).
