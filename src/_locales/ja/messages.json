@@ -29,5 +29,6 @@
 	"btnUpdating": { "message": "更新中…" },
 	"labelUsed": { "message": "使用中" },
 	"labelFreeSpace": { "message": "空き" },
+	"linkAddonPage": { "message": "Thunderbird アドオンの Mailbox Full Alert" },
 	"labelClockSuffix": { "message": "" }
 }

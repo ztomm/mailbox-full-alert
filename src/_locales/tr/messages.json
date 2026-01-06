@@ -29,5 +29,6 @@
 	"btnUpdating": { "message": "Güncelleniyor…" },
 	"labelUsed": { "message": "kullanılan" },
 	"labelFreeSpace": { "message": "boş" },
+	"linkAddonPage": { "message": "Thunderbird Eklentilerinde Mailbox Full Alert" },
 	"labelClockSuffix": { "message": "" }
 }

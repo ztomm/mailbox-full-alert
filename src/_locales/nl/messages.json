@@ -29,5 +29,6 @@
 	"btnUpdating": { "message": "Bijwerken…" },
 	"labelUsed": { "message": "gebruikt" },
 	"labelFreeSpace": { "message": "vrij" },
+	"linkAddonPage": { "message": "Mailbox Full Alert op Thunderbird-add-ons" },
 	"labelClockSuffix": { "message": "" }
 }

@@ -29,5 +29,6 @@
 	"btnUpdating": { "message": "正在更新…" },
 	"labelUsed": { "message": "已用" },
 	"labelFreeSpace": { "message": "可用空間" },
+	"linkAddonPage": { "message": "Thunderbird 附加元件上的 Mailbox Full Alert" },
 	"labelClockSuffix": { "message": "" }
 }

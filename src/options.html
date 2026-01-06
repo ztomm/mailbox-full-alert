@@ -16,6 +16,9 @@
 		.muted { opacity: .85; font-size: 12px; margin-bottom: 12px; }
 		.over-info { opacity: .85; font-weight: 500; }
 
+		.footer-link { margin-top: 30px; font-size: 12px; opacity: .9; }
+		.footer-link a { color: inherit; }
+
 		/* Flex "grid": 7 columns, all left-aligned */
 		.grid-wrap { overflow-x: auto; margin-top: 16px; }
 		.grid { min-width: 1100px; }
@@ -132,8 +135,17 @@
 				<option value="24h" data-i18n="opt24h">24 h</option>
 			</select>
 		</div>
-	</div>
 
+	</div>
+	
+	<div class="footer-link">
+		<a id="addonLink"
+		   href="https://services.addons.thunderbird.net/en-US/thunderbird/addon/mailbox-full-alert"
+		   target="_blank" rel="noopener noreferrer"
+		   data-i18n="linkAddonPage">
+			Mailbox Full Alert on Thunderbird Add-ons
+		</a>
+	</div>
 	<!-- Row template -->
 	<template id="row-tpl">
 		<div class="row grid-row">

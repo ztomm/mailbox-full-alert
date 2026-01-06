@@ -29,5 +29,6 @@
 	"btnUpdating": { "message": "Atualizando…" },
 	"labelUsed": { "message": "usado" },
 	"labelFreeSpace": { "message": "livre" },
+	"linkAddonPage": { "message": "Mailbox Full Alert nos Complementos do Thunderbird" },
 	"labelClockSuffix": { "message": "" }
 }

@@ -9,6 +9,7 @@
 
 const MFA_DEFAULT_THRESHOLD_PCT = 80;
 const MFA_DEFAULT_INTERVAL_MIN = 360; // 6h fallback
+const MFA_AUTOSAVE_DEBOUNCE_MS = 700;
 
 const $ = (sel, el = document) => el.querySelector(sel);
 
@@ -22,6 +23,40 @@ function localizeWithin(root) {
 }
 
 function localizeDocument() { localizeWithin(document); }
+
+/* ===== Add-on page locale URL ===== */
+function getATNLocaleFromUI() {
+	let ui = '';
+	try {
+		if (browser?.i18n?.getUILanguage) ui = browser.i18n.getUILanguage() || '';
+	} catch (e) { /* ignore */ }
+
+	// Fallback used by many WebExtensions
+	if (!ui) {
+		try { ui = browser.i18n.getMessage('@@ui_locale') || ''; } catch (e) { /* ignore */ }
+	}
+
+	ui = String(ui || '').trim().replace('_', '-');
+	if (!ui) return 'en-US';
+
+	let parts = ui.split('-').filter(Boolean);
+	let lang = (parts[0] || 'en').toLowerCase();
+
+	// ATN commonly uses en-US rather than just "en"
+	if (lang === 'en' && parts.length === 1) return 'en-US';
+
+	// Find a region subtag (2 letters or 3 digits) and collapse scripts like zh-Hans-CN -> zh-CN
+	let region = null;
+	for (let i = 1; i < parts.length; i++) {
+		let p = parts[i];
+		if (/^[a-zA-Z]{2}$/.test(p) || /^[0-9]{3}$/.test(p)) {
+			region = p.toUpperCase();
+			break;
+		}
+	}
+
+	return region ? `${lang}-${region}` : lang;
+}
 
 /* ===== Numbers & sizes ===== */
 function parseLocaleNumber(str) {
@@ -137,6 +172,16 @@ function minutesToIntervalSelect(mins) {
 async function load() {
 	localizeDocument();
 
+	// set localized add-on page URL
+	let addonLink = document.getElementById('addonLink');
+	if (addonLink) {
+		let loc = getATNLocaleFromUI();
+		addonLink.href = `https://services.addons.thunderbird.net/${loc}/thunderbird/addon/mailbox-full-alert/`;
+	}
+
+	// Collect per-row flushers to try saving before the options window closes.
+	const flushPendingUpdates = [];
+
 	// Bottom interval selector (auto-save)
 	let selInterval = $('#intervalHours');
 	if (selInterval) {
@@ -191,19 +236,121 @@ async function load() {
 		let pct = Number.isFinite(a.thresholdPct) ? a.thresholdPct : MFA_DEFAULT_THRESHOLD_PCT;
 		if (thresholdSelect) thresholdSelect.value = String([50, 60, 70, 80, 90, 95].includes(pct) ? pct : MFA_DEFAULT_THRESHOLD_PCT);
 
-		// Activation toggle: repaint on change
+		// Keep last successfully saved values, so we don't overwrite storage with 0 when the user
+		// temporarily types an invalid number like "1.".
+		let savedLimitBytes = Number(a.limitBytes || 0);
+		let savedThresholdPct = Number(thresholdSelect?.value ?? MFA_DEFAULT_THRESHOLD_PCT);
+		let savedActive = !!activeToggle?.checked;
+
+		let autosaveTimer = null;
+		let inFlight = false;
+		let pending = false;
+
+		function setButtonBusy(on) {
+			if (!btn) return;
+			btn.disabled = !!on;
+			btn.textContent = on ? t('btnUpdating') : t('btnUpdate');
+		}
+
+		function computeLimitBytesForSave() {
+			let raw = (limitInput?.value ?? '').trim();
+			if (raw === '') return 0;
+
+			let bytes = toBytesGB(raw);
+			if (Number.isFinite(bytes)) return bytes;
+
+			// If invalid but non-empty, do not clobber the stored limit.
+			return savedLimitBytes;
+		}
+
+		function isLimitValueValidOrEmpty() {
+			let raw = (limitInput?.value ?? '').trim();
+			if (raw === '') return true;
+			return Number.isFinite(toBytesGB(raw));
+		}
+
+		async function saveAndCheckRow() {
+			if (inFlight) { pending = true; return; }
+
+			inFlight = true;
+			pending = false;
+
+			let limitBytes = computeLimitBytesForSave();
+			let pctVal = Number(thresholdSelect?.value ?? MFA_DEFAULT_THRESHOLD_PCT);
+			let isActive = !!activeToggle?.checked;
+
+			let payload = {
+				[rowEl.dataset.accountId]: {
+					active: isActive,
+					limitBytes,
+					thresholdPct: pctVal
+				}
+			};
+
+			setButtonBusy(true);
+
+			try {
+				await browser.runtime.sendMessage({ type: 'saveAccountsConfig', payload });
+				await browser.runtime.sendMessage({ type: 'runCheckNow', force: true, accountId: rowEl.dataset.accountId });
+
+				// Update "last saved" values only after successful save
+				savedLimitBytes = limitBytes;
+				savedThresholdPct = pctVal;
+				savedActive = isActive;
+
+				// Repaint usage columns with fresh snapshot (includes time)
+				let usage = await browser.runtime.sendMessage({ type: 'getAccountsUsage' });
+				let one = usage.find(u => u.id === rowEl.dataset.accountId);
+				if (one) paintUsageColumns(rowEl, one);
+			} catch (e) {
+				console.error(e);
+			} finally {
+				setButtonBusy(false);
+				inFlight = false;
+
+				if (pending) {
+					// Run one more time to apply the latest state if changes happened during the in-flight save.
+					saveAndCheckRow().catch(console.error);
+				}
+			}
+		}
+
+		function triggerImmediateSaveAndCheck() {
+			if (autosaveTimer) clearTimeout(autosaveTimer);
+			autosaveTimer = null;
+			saveAndCheckRow().catch(console.error);
+		}
+
+		function scheduleSaveAndCheck(delayMs) {
+			if (autosaveTimer) clearTimeout(autosaveTimer);
+			autosaveTimer = setTimeout(() => {
+				autosaveTimer = null;
+				saveAndCheckRow().catch(console.error);
+			}, delayMs);
+		}
+
+		// Allow pagehide/visibilitychange flush (best-effort)
+		flushPendingUpdates.push(() => {
+			if (autosaveTimer) {
+				clearTimeout(autosaveTimer);
+				autosaveTimer = null;
+				// best-effort; may not finish before the page closes
+				saveAndCheckRow().catch(console.error);
+			}
+		});
+
+		// Activation toggle: auto save+check; also clear usage immediately when turning off
 		activeToggle?.addEventListener('change', () => {
 			if (!activeToggle.checked) {
-				// Clear usage columns and reset styles
-				paintUsageColumns(rowEl, { limitBytes: 0, usedBytes: 0, thresholdPct: MFA_DEFAULT_THRESHOLD_PCT });
-			} else {
-				browser.runtime.sendMessage({ type: 'getAccountsUsage' })
-					.then(usage => {
-						let one = usage.find(u => u.id === rowEl.dataset.accountId);
-						if (one) paintUsageColumns(rowEl, one);
-					})
-					.catch(console.error);
+				// Clear usage columns and reset styles immediately
+				paintUsageColumns(rowEl, { limitBytes: 0, usedBytes: 0, thresholdPct: savedThresholdPct || MFA_DEFAULT_THRESHOLD_PCT });
 			}
+			triggerImmediateSaveAndCheck();
+		});
+
+		// Threshold change: auto save+check immediately
+		thresholdSelect?.addEventListener('change', () => {
+			triggerImmediateSaveAndCheck();
 		});
 
 		// GB validation
@@ -217,38 +364,56 @@ async function load() {
 		limitInput?.addEventListener('input', handleGB);
 		handleGB();
 
-		// Update (save & check this account)
-		btn?.addEventListener('click', async () => {
-			let bytes = toBytesGB(limitInput?.value ?? '');
-			let limitBytes = Number.isFinite(bytes) ? bytes : 0;
-			let pctVal = Number(thresholdSelect?.value ?? MFA_DEFAULT_THRESHOLD_PCT);
+		// Mailbox size: auto save+check
+		// - input fires for typing AND for step-buttons (step="0.1")
+		// - keyup is added as extra safety for some edge cases
+		const onLimitEdited = () => {
+			handleGB();
 
-			let payload = {
-				[rowEl.dataset.accountId]: {
-					active: !!activeToggle?.checked,
-					limitBytes,
-					thresholdPct: pctVal
-				}
-			};
-
-			if (btn) { btn.textContent = t('btnUpdating'); btn.disabled = true; }
-			try {
-				await browser.runtime.sendMessage({ type: 'saveAccountsConfig', payload });
-				await browser.runtime.sendMessage({ type: 'runCheckNow', force: true, accountId: rowEl.dataset.accountId });
-
-				// Repaint usage columns with fresh snapshot (includes time)
-				let usage = await browser.runtime.sendMessage({ type: 'getAccountsUsage' });
-				let one = usage.find(u => u.id === rowEl.dataset.accountId);
-				if (one) paintUsageColumns(rowEl, one);
-			} catch (e) {
-				console.error(e);
-			} finally {
-				if (btn) { btn.textContent = t('btnUpdate'); btn.disabled = false; }
+			// If cleared, save immediately (limit becomes 0 => usage columns should be empty)
+			let raw = (limitInput?.value ?? '').trim();
+			if (raw === '') {
+				paintUsageColumns(rowEl, { limitBytes: 0, usedBytes: 0, thresholdPct: Number(thresholdSelect?.value ?? MFA_DEFAULT_THRESHOLD_PCT) });
+				triggerImmediateSaveAndCheck();
+				return;
 			}
+
+			// If invalid (e.g. "1."), do not schedule an update yet.
+			if (!isLimitValueValidOrEmpty()) {
+				if (autosaveTimer) clearTimeout(autosaveTimer);
+				autosaveTimer = null;
+				return;
+			}
+
+			// Valid number: debounce to avoid heavy checks on every keystroke
+			scheduleSaveAndCheck(MFA_AUTOSAVE_DEBOUNCE_MS);
+		};
+
+		limitInput?.addEventListener('input', onLimitEdited);
+		limitInput?.addEventListener('keyup', onLimitEdited);
+		// If blur/change happens, apply immediately
+		limitInput?.addEventListener('change', () => {
+			if (isLimitValueValidOrEmpty()) triggerImmediateSaveAndCheck();
+		});
+
+		// Update button still works (now calls the shared logic)
+		btn?.addEventListener('click', async () => {
+			triggerImmediateSaveAndCheck();
 		});
 
 		rowsEl.appendChild(frag);
 	}
+
+	// Try to flush any pending row updates when the options page is closed/hidden
+	const flushAll = () => {
+		for (let fn of flushPendingUpdates) {
+			try { fn(); } catch (e) { console.error(e); }
+		}
+	};
+	window.addEventListener('pagehide', flushAll);
+	document.addEventListener('visibilitychange', () => {
+		if (document.visibilityState === 'hidden') flushAll();
+	});
 
 	// Initial snapshot: paint all rows
 	try {

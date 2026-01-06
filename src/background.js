@@ -17,6 +17,9 @@ const MFA_DEFAULT_THRESHOLD_PCT = 80;      // default warning threshold
 const MFA_NOTIFY_STATE_KEY_PREFIX = 'MFA_lastNotifiedPct_';
 const MFA_GLOBAL_INTERVAL_KEY = 'MFA_globalIntervalMin';
 
+/* stable notification ids per account */
+const MFA_NOTIFICATION_ID_PREFIX = 'quota-';
+
 /* ===========================
 * Utils
 * =========================== */
@@ -86,6 +89,18 @@ async function setGlobalIntervalMin(minutes) {
 * Notifications & UI badge
 * =========================== */
 
+function getNotificationId(accountId) {
+	return `${MFA_NOTIFICATION_ID_PREFIX}${accountId}`;
+}
+
+async function clearNotification(accountId) {
+	try {
+		await browser.notifications.clear(getNotificationId(accountId));
+	} catch (e) {
+		// ignore
+	}
+}
+
 async function notify(account, used, limit, pctUsed, threshold) {
 	let title = browser.i18n.getMessage('notifyTitle', account.name || account.id);
 	let line1 = browser.i18n.getMessage('notifyLineUsed', [
@@ -95,7 +110,8 @@ async function notify(account, used, limit, pctUsed, threshold) {
 	]);
 	let line2 = browser.i18n.getMessage('notifyLineThreshold', [`${threshold}%`]);
 
-	await browser.notifications.create(`quota-${account.id}-${Date.now()}`, {
+	// use a stable id so repeated notifications for the same account replace each other
+	await browser.notifications.create(getNotificationId(account.id), {
 		type: 'basic',
 		iconUrl: 'icons/icon-96.png',
 		title,
@@ -134,8 +150,16 @@ async function checkAllAccounts({ forceNotify = false, onlyAccountId = null } = 
 		let limit = Number(conf.limitBytes || 0);
 		let threshold = Number.isFinite(conf.thresholdPct) ? conf.thresholdPct : MFA_DEFAULT_THRESHOLD_PCT;
 
-		if (!active) continue;               // skip inactive
-		if (!limit || limit <= 0) continue;  // skip if no mailbox size
+		// If monitoring is disabled or no limit is set, ensure we don't keep stale notifications around
+		if (!active || !limit || limit <= 0) {
+			await clearNotification(acc.id);
+
+			// Also reset lastPct so re-enabling can notify again on a fresh "cross up"
+			let key = `${MFA_NOTIFY_STATE_KEY_PREFIX}${acc.id}`;
+			try { await browser.storage.local.set({ [key]: 0 }); } catch (e) { /* ignore */ }
+
+			continue;
+		}
 
 		let used = 0;
 		try { used = await sumAccountBytes(acc.id); }
@@ -147,6 +171,11 @@ async function checkAllAccounts({ forceNotify = false, onlyAccountId = null } = 
 		let lastPct = st[key];
 		let crossedUp = pctUsed >= threshold && lastPct < threshold;
 
+		// If no longer critical, clear any existing notification for this account
+		if (pctUsed < threshold) {
+			await clearNotification(acc.id);
+		}
+
 		if (pctUsed >= threshold) {
 			let floored = Math.floor(pctUsed);
 			if (floored > topBadgePercent) {
@@ -155,7 +184,8 @@ async function checkAllAccounts({ forceNotify = false, onlyAccountId = null } = 
 			}
 		}
 
-		if ((forceNotify && pctUsed >= threshold) || crossedUp) {
+		// Notify only on threshold crossing (normal) OR forced notify while still over threshold
+		if (crossedUp || (forceNotify && pctUsed >= threshold)) {
 			await notify(acc, used, limit, pctUsed, threshold);
 		}
 
