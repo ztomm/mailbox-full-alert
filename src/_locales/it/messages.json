@@ -14,7 +14,7 @@
 	"colAccount": { "message": "Account" },
 	"colUsage": { "message": "Utilizzo" },
 	"labelMailboxGB": { "message": "Dimensione casella di posta (GB)" },
-	"labelThresholdPct": { "message": "Avvisa a" },
+	"labelThresholdPct": { "message": "Livello di attenzione" },
 	"labelIntervalHoursShort": { "message": "Controllo ogni " },
 	"optOff": { "message": "Disattivato" },
 	"opt5m": { "message": "5 min" },
