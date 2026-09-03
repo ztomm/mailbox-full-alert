@@ -5,6 +5,9 @@
 .env
 config/local*
 
+# build, dist
+build/
+
 # editors
 .idea
 .vscode

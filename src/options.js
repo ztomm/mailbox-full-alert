@@ -1,7 +1,6 @@
 /* global browser */
 
 const MFA_DEFAULT_THRESHOLD_PCT = 80;
-const MFA_DEFAULT_INTERVAL_MIN = 360;
 const MFA_AUTOSAVE_DEBOUNCE_MS = 650;
 const MFA_COMMON_LIMITS_GB = ['1', '2', '5', '10', '15', '50'];
 const rowControllers = [];
@@ -59,16 +58,6 @@ function accountTypeText(type) {
 	if (type === 'imap') return t('accountTypeImap');
 	if (type === 'pop3') return t('accountTypePop');
 	return t('accountTypeOther');
-}
-
-function intervalSelectToMinutes(value) {
-	let values = { off: 0, '5m': 5, '30m': 30, '1h': 60, '3h': 180, '6h': 360, '12h': 720, '24h': 1440 };
-	return values[value] ?? MFA_DEFAULT_INTERVAL_MIN;
-}
-
-function minutesToIntervalSelect(minutes) {
-	let values = { 0: 'off', 5: '5m', 30: '30m', 60: '1h', 180: '3h', 360: '6h', 720: '12h', 1440: '24h' };
-	return values[Math.max(0, Math.floor(Number(minutes) || 0))] || '6h';
 }
 
 function setFeedback(key, kind = '', substitutions = []) {
@@ -343,12 +332,13 @@ async function load() {
 	});
 
 	let interval = $('#intervalHours');
-	interval.value = minutesToIntervalSelect(globalSettings.intervalMin);
+	interval.value = String(globalSettings.intervalMin);
+	if (!interval.value) interval.value = '360';
 	interval.addEventListener('change', async () => {
 		try {
 			await browser.runtime.sendMessage({
 				type: 'saveGlobalSettingsMinutes',
-				intervalMin: intervalSelectToMinutes(interval.value)
+				intervalMin: Number(interval.value)
 			});
 			setFeedback('settingsSaved', 'success');
 		} catch (error) {

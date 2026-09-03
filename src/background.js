@@ -11,69 +11,22 @@ const MFA_ALARM_NAME = 'quota-check';
 
 let operationQueue = Promise.resolve();
 
-function formatBytes(bytes) {
-	let value = Number(bytes) || 0;
-	let unit = 'byte';
-	let divisor = 1;
-
-	if (value >= 1024 ** 3) {
-		unit = 'gigabyte';
-		divisor = 1024 ** 3;
-	} else if (value >= 1024 ** 2) {
-		unit = 'megabyte';
-		divisor = 1024 ** 2;
-	} else if (value >= 1024) {
-		unit = 'kilobyte';
-		divisor = 1024;
-	}
-
-	try {
-		return new Intl.NumberFormat(browser.i18n.getUILanguage(), {
-			style: 'unit', unit, unitDisplay: 'short',
-			maximumFractionDigits: divisor === 1 ? 0 : 1
-		}).format(value / divisor);
-	} catch (error) {
-		let labels = { byte: 'B', kilobyte: 'KB', megabyte: 'MB', gigabyte: 'GB' };
-		return `${(value / divisor).toFixed(divisor === 1 ? 0 : 1)} ${labels[unit]}`;
-	}
-}
-
-async function sumFolderMessagesSize(folder) {
-	let total = 0;
-	let page = await browser.messages.list(folder);
-	while (true) {
-		for (let message of page.messages) {
-			if (typeof message.size === 'number') total += message.size;
-		}
-		if (!page.id) break;
-		page = await browser.messages.continueList(page.id);
-	}
-	return total;
-}
-
 async function sumAccountBytes(accountId) {
-	let account = await browser.accounts.get(accountId, true);
-	if (!account?.rootFolder) return 0;
 	let total = 0;
-	async function walk(folder) {
-		total += await sumFolderMessagesSize(folder);
-		let children = Array.isArray(folder.subFolders)
-			? folder.subFolders
-			: await browser.folders.getSubFolders(folder);
-		for (let child of children) await walk(child);
+	let page = await browser.messages.query({ accountId });
+	while (page) {
+		for (let message of page.messages) total += Number(message.size || 0);
+		page = page.id ? await browser.messages.continueList(page.id) : null;
 	}
-	await walk(account.rootFolder);
 	return total;
 }
 
-async function getPerAccountConfig() {
-	let { perAccount = {} } = await browser.storage.local.get({ perAccount: {} });
-	return perAccount;
-}
-
-async function getAccountStatus() {
-	let result = await browser.storage.local.get({ [MFA_ACCOUNT_STATUS_KEY]: {} });
-	return result[MFA_ACCOUNT_STATUS_KEY] || {};
+async function getAccountData() {
+	let stored = await browser.storage.local.get({ perAccount: {}, [MFA_ACCOUNT_STATUS_KEY]: {} });
+	return {
+		perAccount: stored.perAccount || {},
+		statuses: stored[MFA_ACCOUNT_STATUS_KEY] || {}
+	};
 }
 
 async function getGlobalIntervalMin() {
@@ -86,9 +39,13 @@ function notificationId(accountId) {
 	return `${MFA_NOTIFICATION_ID_PREFIX}${accountId}`;
 }
 
-function isMonitoringActive(account, config) {
-	if (typeof config.active === 'boolean') return config.active;
-	return account.type === 'imap';
+function getAccountConfig(account, perAccount) {
+	let stored = perAccount[account.id] || {};
+	return {
+		active: typeof stored.active === 'boolean' ? stored.active : account.type === 'imap',
+		limitBytes: Math.max(0, Number(stored.limitBytes) || 0),
+		thresholdPct: Number.isFinite(stored.thresholdPct) ? stored.thresholdPct : MFA_DEFAULT_THRESHOLD_PCT
+	};
 }
 
 async function clearNotification(accountId) {
@@ -101,8 +58,12 @@ async function clearNotification(accountId) {
 
 async function showNotification(account, used, limit, pctUsed, threshold) {
 	let title = browser.i18n.getMessage('notifyTitle', account.name || account.id);
+	let [usedText, limitText] = await Promise.all([
+		browser.messengerUtilities.formatFileSize(used),
+		browser.messengerUtilities.formatFileSize(limit)
+	]);
 	let line1 = browser.i18n.getMessage('notifyLineUsed', [
-		formatBytes(used), formatBytes(limit), pctUsed.toFixed(1)
+		usedText, limitText, pctUsed.toFixed(1)
 	]);
 	let line2 = browser.i18n.getMessage('notifyLineThreshold', [`${threshold}%`]);
 	await browser.notifications.create(notificationId(account.id), {
@@ -112,27 +73,23 @@ async function showNotification(account, used, limit, pctUsed, threshold) {
 }
 
 async function updateBadge(accounts, perAccount, statuses) {
-	let critical = [];
-	let incomplete = [];
+	let top = null;
+	let incompleteCount = 0;
 	for (let account of accounts) {
-		let config = perAccount[account.id] || {};
-		let active = isMonitoringActive(account, config);
-		let limit = Number(config.limitBytes || 0);
+		let { active, limitBytes, thresholdPct } = getAccountConfig(account, perAccount);
 		if (!active) continue;
-		if (!(limit > 0)) {
-			incomplete.push(account);
+		if (!(limitBytes > 0)) {
+			incompleteCount += 1;
 			continue;
 		}
 		let status = statuses[account.id];
-		let threshold = Number.isFinite(config.thresholdPct) ? config.thresholdPct : MFA_DEFAULT_THRESHOLD_PCT;
-		if (status && Number(status.pctUsed) >= threshold) {
-			critical.push({ account, percent: Math.floor(Number(status.pctUsed)) });
+		if (status && Number(status.pctUsed) >= thresholdPct) {
+			let candidate = { account, percent: Math.floor(Number(status.pctUsed)) };
+			if (!top || candidate.percent > top.percent) top = candidate;
 		}
 	}
 
-	if (critical.length) {
-		critical.sort((a, b) => b.percent - a.percent);
-		let top = critical[0];
+	if (top) {
 		let badgeText = top.percent > 999 ? '999+' : `${top.percent}%`;
 		await browser.browserAction.setBadgeText({ text: badgeText });
 		await browser.browserAction.setBadgeBackgroundColor({ color: '#c62828' });
@@ -140,11 +97,11 @@ async function updateBadge(accounts, perAccount, statuses) {
 		return;
 	}
 
-	if (incomplete.length) {
+	if (incompleteCount) {
 		await browser.browserAction.setBadgeText({ text: '!' });
 		await browser.browserAction.setBadgeBackgroundColor({ color: '#e6a700' });
 		await browser.browserAction.setTitle({
-			title: browser.i18n.getMessage('badgeSetupTitle', String(incomplete.length)) || 'Setup required'
+			title: browser.i18n.getMessage('badgeSetupTitle') || 'Setup required'
 		});
 		return;
 	}
@@ -155,15 +112,15 @@ async function updateBadge(accounts, perAccount, statuses) {
 
 function buildUsageSnapshot(accounts, perAccount, statuses) {
 	return accounts.map(account => {
-		let config = perAccount[account.id] || {};
+		let config = getAccountConfig(account, perAccount);
 		let status = statuses[account.id] || {};
 		return {
 			id: account.id,
 			name: account.name || account.id,
 			type: account.type || '',
-			active: isMonitoringActive(account, config),
-			limitBytes: Number(config.limitBytes || 0),
-			thresholdPct: Number.isFinite(config.thresholdPct) ? config.thresholdPct : MFA_DEFAULT_THRESHOLD_PCT,
+			active: config.active,
+			limitBytes: config.limitBytes,
+			thresholdPct: config.thresholdPct,
 			usedBytes: Number(status.usedBytes || 0),
 			pctUsed: Number(status.pctUsed || 0),
 			checkedAt: Number(status.checkedAt || 0),
@@ -174,8 +131,10 @@ function buildUsageSnapshot(accounts, perAccount, statuses) {
 
 async function performCheck({ onlyAccountId = null } = {}) {
 	let accounts = await browser.accounts.list();
-	let perAccount = await getPerAccountConfig();
-	let statuses = await getAccountStatus();
+	let { perAccount, statuses } = await getAccountData();
+	let notifyKeys = accounts.map(account => `${MFA_NOTIFY_STATE_KEY_PREFIX}${account.id}`);
+	let notifyState = await browser.storage.local.get(notifyKeys);
+	let notifyUpdates = {};
 	let existingIds = new Set(accounts.map(account => account.id));
 	for (let accountId of Object.keys(statuses)) {
 		if (!existingIds.has(accountId)) delete statuses[accountId];
@@ -183,33 +142,29 @@ async function performCheck({ onlyAccountId = null } = {}) {
 
 	for (let account of accounts) {
 		if (onlyAccountId && account.id !== onlyAccountId) continue;
-		let config = perAccount[account.id] || {};
-		let active = isMonitoringActive(account, config);
-		let limit = Number(config.limitBytes || 0);
-		let threshold = Number.isFinite(config.thresholdPct) ? config.thresholdPct : MFA_DEFAULT_THRESHOLD_PCT;
+		let { active, limitBytes, thresholdPct } = getAccountConfig(account, perAccount);
 		let notifyKey = `${MFA_NOTIFY_STATE_KEY_PREFIX}${account.id}`;
 
-		if (!active || !(limit > 0)) {
+		if (!active || !(limitBytes > 0)) {
 			delete statuses[account.id];
 			await clearNotification(account.id);
-			await browser.storage.local.set({ [notifyKey]: 0 });
+			notifyUpdates[notifyKey] = 0;
 			continue;
 		}
 
 		try {
 			let used = await sumAccountBytes(account.id);
-			let pctUsed = (used / limit) * 100;
-			let previous = await browser.storage.local.get({ [notifyKey]: 0 });
-			let lastPct = Number(previous[notifyKey] || 0);
-			let crossedThreshold = pctUsed >= threshold && lastPct < threshold;
-			if (pctUsed < threshold) await clearNotification(account.id);
-			if (crossedThreshold) await showNotification(account, used, limit, pctUsed, threshold);
+			let pctUsed = (used / limitBytes) * 100;
+			let lastPct = Number(notifyState[notifyKey] || 0);
+			let crossedThreshold = pctUsed >= thresholdPct && lastPct < thresholdPct;
+			if (pctUsed < thresholdPct) await clearNotification(account.id);
+			if (crossedThreshold) await showNotification(account, used, limitBytes, pctUsed, thresholdPct);
 			statuses[account.id] = {
 				usedBytes: used,
 				pctUsed: Math.round(pctUsed * 10) / 10,
 				checkedAt: Date.now(), error: ''
 			};
-			await browser.storage.local.set({ [notifyKey]: Math.round(pctUsed * 10) / 10 });
+			notifyUpdates[notifyKey] = statuses[account.id].pctUsed;
 		} catch (error) {
 			console.error('[MFA] Check failed for account', account.id, error);
 			statuses[account.id] = {
@@ -219,7 +174,7 @@ async function performCheck({ onlyAccountId = null } = {}) {
 		}
 	}
 
-	await browser.storage.local.set({ [MFA_ACCOUNT_STATUS_KEY]: statuses });
+	await browser.storage.local.set({ ...notifyUpdates, [MFA_ACCOUNT_STATUS_KEY]: statuses });
 	await updateBadge(accounts, perAccount, statuses);
 	return buildUsageSnapshot(accounts, perAccount, statuses);
 }
@@ -235,8 +190,8 @@ function queueCheck(options = {}) {
 }
 
 async function saveAccountsConfig(nextPartial) {
-	let current = await getPerAccountConfig();
-	let statuses = await getAccountStatus();
+	let { perAccount: current, statuses } = await getAccountData();
+	let storageUpdates = { perAccount: current, [MFA_ACCOUNT_STATUS_KEY]: statuses };
 	for (let [accountId, next] of Object.entries(nextPartial || {})) {
 		let previous = current[accountId] || {};
 		let normalized = {
@@ -252,10 +207,10 @@ async function saveAccountsConfig(nextPartial) {
 		}
 		if (monitoringChanged || thresholdChanged) {
 			await clearNotification(accountId);
-			await browser.storage.local.set({ [`${MFA_NOTIFY_STATE_KEY_PREFIX}${accountId}`]: 0 });
+			storageUpdates[`${MFA_NOTIFY_STATE_KEY_PREFIX}${accountId}`] = 0;
 		}
 	}
-	await browser.storage.local.set({ perAccount: current, [MFA_ACCOUNT_STATUS_KEY]: statuses });
+	await browser.storage.local.set(storageUpdates);
 	let accounts = await browser.accounts.list();
 	await updateBadge(accounts, current, statuses);
 	return buildUsageSnapshot(accounts, current, statuses);
@@ -301,8 +256,8 @@ browser.browserAction.onClicked.addListener(() => browser.runtime.openOptionsPag
 
 browser.runtime.onMessage.addListener(async message => {
 	if (message?.type === 'getAccountsState') {
-		let accounts = await browser.accounts.list();
-		return buildUsageSnapshot(accounts, await getPerAccountConfig(), await getAccountStatus());
+		let [accounts, accountData] = await Promise.all([browser.accounts.list(), getAccountData()]);
+		return buildUsageSnapshot(accounts, accountData.perAccount, accountData.statuses);
 	}
 	if (message?.type === 'saveAccountsConfig') {
 		return { ok: true, usage: await queueOperation(() => saveAccountsConfig(message.payload || {})) };

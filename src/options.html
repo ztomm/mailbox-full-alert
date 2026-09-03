@@ -15,6 +15,7 @@
 		.onboarding { border-color: #6797c4; background: rgba(43,108,176,.08); }
 		.onboarding ol { margin: 12px 0; padding-left: 24px; }
 		.onboarding li { margin: 7px 0; }
+		.onboarding .btn { margin-top: 18px; }
 		.muted { opacity: .8; }
 		.help { margin-top: 10px; font-size: 13px; }
 		.interval-help { margin-bottom: 24px; }
@@ -62,28 +63,28 @@
 
 	<section id="onboarding" class="card onboarding" hidden>
 		<h2 data-i18n="onboardingTitle">Set up Mailbox Full Alert</h2>
-		<p data-i18n="onboardingIntro">Your provider does not report a usable mailbox limit to Thunderbird. Complete these steps once:</p>
+		<p data-i18n="onboardingIntro">Complete these steps once:</p>
 		<ol>
-			<li data-i18n="onboardingStep1">Use an IMAP account and make sure Thunderbird has synchronized all mail folders.</li>
-			<li data-i18n="onboardingStep2">Find the total mailbox size in your provider's customer portal, help pages or webmail.</li>
-			<li data-i18n="onboardingStep3">Enter that size below, choose a warning level and run the first check.</li>
+			<li data-i18n="onboardingStep1">Choose the auto-check interval for regular automatic checks.</li>
+			<li data-i18n="onboardingStep2">Select the mailboxes you want to monitor.</li>
+			<li data-i18n="onboardingStep3">Enter the mailbox size and run the first check.</li>
 		</ol>
-		<p class="help"><strong data-i18n="imapNoteTitle">Important:</strong> <span data-i18n="imapNoteText">The measured value matches the server mailbox when all IMAP folders are synchronized. POP accounts are only suitable to a limited extent.</span></p>
-		<button id="dismissOnboarding" class="btn primary" type="button" data-i18n="btnUnderstood">Got it</button>
+		<p class="help"><strong data-i18n="imapNoteTitle">Important:</strong> <span data-i18n="imapNoteText">IMAP is the recommended account type. POP accounts are only suitable to a limited extent.</span></p>
+		<button id="dismissOnboarding" class="btn primary" type="button" data-i18n="btnUnderstood">Got it – don't show again</button>
 	</section>
 
 	<section class="card">
 		<div class="interval">
 			<label for="intervalHours" data-i18n="labelIntervalHoursShort">Check every:</label>
 			<select id="intervalHours" data-i18n-aria-label="ariaInterval">
-				<option value="off" data-i18n="optOff">Off</option>
-				<option value="5m" data-i18n="opt5m">5 min</option>
-				<option value="30m" data-i18n="opt30m">30 min</option>
-				<option value="1h" data-i18n="opt1h">1 h</option>
-				<option value="3h" data-i18n="opt3h">3 h</option>
-				<option value="6h" data-i18n="opt6h">6 h</option>
-				<option value="12h" data-i18n="opt12h">12 h</option>
-				<option value="24h" data-i18n="opt24h">24 h</option>
+				<option value="0" data-i18n="optOff">Off</option>
+				<option value="5" data-i18n="opt5m">5 min</option>
+				<option value="30" data-i18n="opt30m">30 min</option>
+				<option value="60" data-i18n="opt1h">1 h</option>
+				<option value="180" data-i18n="opt3h">3 h</option>
+				<option value="360" data-i18n="opt6h">6 h</option>
+				<option value="720" data-i18n="opt12h">12 h</option>
+				<option value="1440" data-i18n="opt24h">24 h</option>
 			</select>
 		</div>
 		<p class="muted help interval-help" data-i18n="automaticChecksHelp">Avoid an unnecessarily short interval, as frequent checks use additional processing power.</p>
