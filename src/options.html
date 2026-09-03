@@ -1,207 +1,140 @@
 <!doctype html>
 <html>
 <head>
-	<meta charset="utf-8" />
+	<meta charset="utf-8">
 	<title data-i18n="optionsTitle">Mailbox Full Alert – Settings</title>
-	<meta name="viewport" content="width=device-width,initial-scale=1"/>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<style>
-		:root { color-scheme: light dark; }
-		body { font: 14px/1.5 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 24px; }
-		h1 { font-size: 18px; margin: 0 0 12px; }
-		h2 { font-size: 14px; margin: 0 0 12px; }
-		.card { border: 1px solid rgba(0,0,0,.15); border-radius: 12px; padding: 16px; }
-		.card + .card { margin-top: 16px; }
-		.separator { margin-top: 60px; padding-bottom: 40px; border-top: 1px solid rgba(0,0,0,.15); }
-
-		.muted { opacity: .85; font-size: 12px; margin-bottom: 12px; }
-		.over-info { opacity: .85; font-weight: 500; }
-
-		.footer-link { margin-top: 30px; font-size: 12px; opacity: .9; }
+		:root { color-scheme: light dark; --accent: #2b6cb0; --warn: #9a6700; --danger: #c62828; --ok: #287a3d; }
+		* { box-sizing: border-box; }
+		body { max-width: 1280px; margin: 0 auto; padding: 24px; font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+		h1 { margin: 0; font-size: 24px; }
+		h2 { margin: 0 0 8px; font-size: 18px; }
+		p { margin: 6px 0; }
+		.card { margin-top: 18px; padding: 18px; border: 1px solid rgba(127,127,127,.32); border-radius: 12px; }
+		.onboarding { border-color: #6797c4; background: rgba(43,108,176,.08); }
+		.onboarding ol { margin: 12px 0; padding-left: 24px; }
+		.onboarding li { margin: 7px 0; }
+		.muted { opacity: .8; }
+		.help { margin-top: 10px; font-size: 13px; }
+		.interval-help { margin-bottom: 24px; }
+		.toolbar { margin: 0; }
+		.feedback { display: flex; align-items: flex-start; gap: 10px; margin: 14px 0; padding: 10px 12px; border: 1px solid rgba(43,108,176,.45); border-left: 4px solid var(--accent); border-radius: 8px; background: rgba(43,108,176,.09); box-shadow: 0 1px 2px rgba(0,0,0,.08); font-weight: 600; }
+		.feedback-icon { flex: 0 0 20px; width: 20px; height: 20px; border-radius: 50%; color: #fff; background: var(--accent); font-size: 13px; line-height: 20px; text-align: center; }
+		.feedback-icon::before { content: "i"; }
+		.feedback.error { color: var(--danger); border-color: rgba(198,40,40,.45); border-left-color: var(--danger); background: rgba(198,40,40,.09); }
+		.feedback.error .feedback-icon { background: var(--danger); }
+		.feedback.error .feedback-icon::before { content: "!"; }
+		.feedback.success { color: var(--ok); border-color: rgba(40,122,61,.45); border-left-color: var(--ok); background: rgba(40,122,61,.09); }
+		.feedback.success .feedback-icon { background: var(--ok); }
+		.feedback.success .feedback-icon::before { content: "✓"; }
+		.status.error { color: var(--danger); }
+		.feedback.success, .status.ok { color: var(--ok); }
+		.btn { padding: 8px 13px; border: 1px solid rgba(127,127,127,.45); border-radius: 8px; cursor: pointer; font: inherit; }
+		.btn.primary { color: #fff; background: var(--accent); border-color: var(--accent); font-weight: 600; }
+		.btn:disabled { cursor: not-allowed; opacity: .65; }
+		.btn.checking:disabled { cursor: wait; }
+		.accounts { overflow-x: auto; }
+		.account-row, .account-head { display: grid; grid-template-columns: 72px minmax(180px, 1.5fr) minmax(205px, 1.4fr) 180px 145px 125px; align-items: center; min-width: 990px; border-bottom: 1px solid rgba(127,127,127,.2); }
+		.account-head { font-weight: 700; border-bottom-color: rgba(127,127,127,.4); }
+		.cell { min-width: 0; padding: 11px 9px; }
+		.account-name { font-weight: 650; overflow-wrap: anywhere; }
+		.account-type { margin-top: 3px; font-size: 12px; opacity: .8; }
+		.status { font-weight: 600; }
+		.status.setup { color: var(--warn); }
+		.status-detail { margin-top: 3px; font-size: 12px; font-weight: 400; opacity: .82; }
+		input[type="text"], select { width: 100%; padding: 8px 9px; border: 1px solid rgba(127,127,127,.45); border-radius: 7px; font: inherit; background: Canvas; color: CanvasText; }
+		input.invalid { border-color: var(--danger); box-shadow: 0 0 0 2px rgba(198,40,40,.18); }
+		.limit-custom { margin-top: 7px; }
+		.interval { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+		.interval select { width: 150px; }
+		.footer-link { margin: 28px 0 10px; font-size: 13px; }
 		.footer-link a { color: inherit; }
-
-		/* Flex "grid": 7 columns, all left-aligned */
-		.grid-wrap { overflow-x: auto; margin-top: 16px; }
-		.grid { min-width: 1100px; }
-
-		.row, .head {
-			display: flex;
-			align-items: center;
-			border-bottom: 1px solid rgba(0,0,0,.08);
-		}
-		.head {
-			font-weight: 700;
-			border-bottom: 1px solid rgba(0,0,0,.15);
-		}
-		.row:last-child { border-bottom: none; }
-
-		.cell { padding: 10px; display: flex; align-items: center; gap: 8px; min-height: 40px; text-align: left; justify-content: flex-start; }
-
-		/* Column widths: Active | Account | Usage% | (detail) used/free/time | Mailbox size | Threshold | Button */
-		.c1 { flex: 0 0 90px;  width: 90px; }
-		.c2 { flex: 0 0 260px; width: 260px; }      /* Account */
-		.c3 { flex: 0 0 160px; width: 160px; }      /* Usage% only */
-		.c4 { flex: 0 0 320px; width: 320px; }      /* "900 MB used, 100 MB free - 18:25 h" */
-		.c5 { flex: 0 0 200px; width: 200px; }      /* Mailbox GB */
-		.c6 { flex: 0 0 180px; width: 180px; }      /* Threshold */
-		.c7 { flex: 1 1 auto;  width: 140px; }      /* Update button area grows */
-
-		.name { font-weight: 600; min-width: 0; }
-		.inline { display: inline-flex; align-items: center; gap: 6px; }
-
-		.usage-pt .pct { font-weight: 700; } /* bold; color set via JS */
-		.usage-detail { white-space: nowrap; }
-
-		label { min-width: 80px; }
-		input[type="number"], input[type="text"], select {
-			width: 140px;
-			padding: 8px 10px;
-			border-radius: 8px;
-			border: 1px solid rgba(0,0,0,.25);
-			box-sizing: border-box;
-		}
-		.suffix { opacity: .8; }
-		.invalid { border-color: #c62828; box-shadow: 0 0 0 2px rgba(198,40,40,.15); }
-		.btn { padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(0,0,0,.25); cursor: pointer; }
-
-		/* --- Responsive grid refinements --- */
-
-		/* Breite ≤ 1600px: Detail-Spalte komplett weg */
-		@media (max-width: 1600px) {
-			.c4 { display: none; }
-		}
-
-		/* ≤ 1400px: alle Felder enger */
-		@media (max-width: 1400px) {
-			.c1 { flex: 0 0 50px;  width: 50px; }
-			.c2 { width: 200px; flex: 0 0 200px; }  /* Konto */
-			.c3 { width: 120px; flex: 0 0 120px; }  /* Auslastung % */
-			.c5 { width: 160px; flex: 0 0 160px; }  /* Mailboxgröße */
-			.c6 { width: 140px; flex: 0 0 140px; }  /* Warnen ab */
-			.c7 { width: 110px; flex: 0 0 110px; }  /* Button */
-		}
-
-		/* ≤ 1100px: noch kompakter */
-		@media (max-width: 1100px) {
-			.c2 { width: 160px; flex: 0 0 160px; }
-			.c3 { width: 100px; flex: 0 0 100px; }
-			.c5 { width: 130px; flex: 0 0 130px; }
-			.c6 { width: 120px; flex: 0 0 120px; }
-			.c7 { width: 100px; flex: 0 0 100px; }
-		}
-
+		[hidden] { display: none !important; }
+		@media (max-width: 700px) { body { padding: 14px; } .card { padding: 14px; } }
 	</style>
 </head>
 <body>
-	<h1 data-i18n="optionsTitle">Mailbox Full Alert – Settings</h1>
+	<header>
+		<h1 data-i18n="optionsTitle">Mailbox Full Alert – Settings</h1>
+		<p class="muted" data-i18n="optionsIntro">Measure mailbox usage and receive a warning before storage runs out.</p>
+	</header>
 
-	<!-- Per-account settings -->
-	<div class="card">
-		<h2 data-i18n="optionsHeadline">Per-account storage limits and alerts</h2>
-		<div class="muted" data-i18n="optionsIntro">
-			Set your mailbox size (GB) and at which usage you want to be warned.
-		</div>
+	<section id="onboarding" class="card onboarding" hidden>
+		<h2 data-i18n="onboardingTitle">Set up Mailbox Full Alert</h2>
+		<p data-i18n="onboardingIntro">Your provider does not report a usable mailbox limit to Thunderbird. Complete these steps once:</p>
+		<ol>
+			<li data-i18n="onboardingStep1">Use an IMAP account and make sure Thunderbird has synchronized all mail folders.</li>
+			<li data-i18n="onboardingStep2">Find the total mailbox size in your provider's customer portal, help pages or webmail.</li>
+			<li data-i18n="onboardingStep3">Enter that size below, choose a warning level and run the first check.</li>
+		</ol>
+		<p class="help"><strong data-i18n="imapNoteTitle">Important:</strong> <span data-i18n="imapNoteText">The measured value matches the server mailbox when all IMAP folders are synchronized. POP accounts are only suitable to a limited extent.</span></p>
+		<button id="dismissOnboarding" class="btn primary" type="button" data-i18n="btnUnderstood">Got it</button>
+	</section>
 
-		<div class="grid-wrap" role="group" aria-label="Per-account settings">
-			<div class="grid" id="grid">
-				<!-- Header -->
-				<div class="head">
-					<div class="cell c1" data-i18n="colActive">Active</div>
-					<div class="cell c2" data-i18n="colAccount">Account</div>
-					<div class="cell c3" data-i18n="colUsage">Auslastung</div>
-					<div class="cell c4"></div>
-					<div class="cell c5" data-i18n="labelMailboxGB">Mailbox size (GB)</div>
-					<div class="cell c6" data-i18n="labelThresholdPct">Alert at</div>
-					<div class="cell c7"></div>
-				</div>
-
-				<!-- Rows injected here -->
-				<div id="rows"></div>
-			</div>
-		</div>
-
-		<div class="separator"></div>
-
-		<!-- Global interval setting (BOTTOM) -->
-		<div class="inline">
-			<label data-i18n="labelIntervalHoursShort">Check every: </label>
-			<select id="intervalHours" aria-label="Automatic check interval">
+	<section class="card">
+		<div class="interval">
+			<label for="intervalHours" data-i18n="labelIntervalHoursShort">Check every:</label>
+			<select id="intervalHours" data-i18n-aria-label="ariaInterval">
 				<option value="off" data-i18n="optOff">Off</option>
-				<option value="5m"  data-i18n="opt5m">5 min</option>
+				<option value="5m" data-i18n="opt5m">5 min</option>
 				<option value="30m" data-i18n="opt30m">30 min</option>
-				<option value="1h"  data-i18n="opt1h">1 h</option>
-				<option value="3h"  data-i18n="opt3h">3 h</option>
-				<option value="6h"  data-i18n="opt6h">6 h</option>
+				<option value="1h" data-i18n="opt1h">1 h</option>
+				<option value="3h" data-i18n="opt3h">3 h</option>
+				<option value="6h" data-i18n="opt6h">6 h</option>
 				<option value="12h" data-i18n="opt12h">12 h</option>
 				<option value="24h" data-i18n="opt24h">24 h</option>
 			</select>
 		</div>
+		<p class="muted help interval-help" data-i18n="automaticChecksHelp">Avoid an unnecessarily short interval, as frequent checks use additional processing power.</p>
 
-	</div>
-	
-	<div class="footer-link">
-		<a id="addonLink"
-		   href="https://services.addons.thunderbird.net/en-US/thunderbird/addon/mailbox-full-alert"
-		   target="_blank" rel="noopener noreferrer"
-		   data-i18n="linkAddonPage">
-			Mailbox Full Alert on Thunderbird Add-ons
-		</a>
-	</div>
-	<!-- Row template -->
-	<template id="row-tpl">
-		<div class="row grid-row">
-			<!-- Active -->
-			<div class="cell c1">
-				<input type="checkbox" class="activeToggle" aria-label="Active account monitoring">
-				<label class="sr-only" style="display:none" data-i18n="colActive">Active</label>
-			</div>
-
-			<!-- Account name -->
-			<div class="cell c2">
-				<div class="name"></div>
-			</div>
-
-			<!-- Usage% (bold, black; red when over threshold) -->
-			<div class="cell c3">
-				<span class="usage-pt">
-					<span class="pct"></span>
-				</span>
-			</div>
-
-			<!-- Detail: "900 MB belegt, 100 MB frei - 18:25 Uhr" -->
-			<div class="cell c4">
-				<span class="usage-detail"></span>
-			</div>
-
-			<!-- Mailbox size (GB) -->
-			<div class="cell c5">
-				<label class="inline">
-					<input class="limit" type="number" min="0" step="0.1"
-								placeholder="" data-i18n-placeholder="phExampleNumber"
-								aria-label="Mailbox size in GB">
-				</label>
-			</div>
-
-			<!-- Threshold (%) -->
-			<div class="cell c6">
-				<label class="inline">
-					<select class="threshold" aria-label="Alert at usage in percent">
-						<option value="50">50%</option>
-						<option value="60">60%</option>
-						<option value="70">70%</option>
-						<option value="80">80%</option>
-						<option value="90">90%</option>
-						<option value="95">95%</option>
-					</select>
-				</label>
-			</div>
-
-			<!-- Update -->
-			<div class="cell c7">
-				<button class="btn saveAndCheckRow" data-i18n="btnUpdate">Update</button>
+		<div class="toolbar">
+			<div id="feedback" class="feedback" role="status" aria-live="polite" aria-atomic="true" hidden>
+				<span class="feedback-icon" aria-hidden="true"></span>
+				<span class="feedback-message"></span>
 			</div>
 		</div>
-	</template>
 
+		<div class="accounts" role="group" data-i18n-aria-label="ariaAccountSettings">
+			<div class="account-head">
+				<div class="cell" data-i18n="colActive">Active</div>
+				<div class="cell" data-i18n="colAccount">Account</div>
+				<div class="cell" data-i18n="colStatus">Last measured usage</div>
+				<div class="cell" data-i18n="labelMailboxGB">Mailbox size (GB)</div>
+				<div class="cell" data-i18n="labelThresholdPct">Warn at</div>
+				<div class="cell"></div>
+			</div>
+			<div id="rows"></div>
+		</div>
+	</section>
+
+	<div class="footer-link">
+		<a id="addonLink" href="https://services.addons.thunderbird.net/en-US/thunderbird/addon/mailbox-full-alert/" target="_blank" rel="noopener noreferrer" data-i18n="linkAddonPage">Mailbox Full Alert on Thunderbird Add-ons</a>
+	</div>
+
+	<template id="rowTemplate">
+		<div class="account-row">
+			<div class="cell"><input class="active" type="checkbox"></div>
+			<div class="cell"><div class="account-name"></div><div class="account-type"></div></div>
+			<div class="cell"><div class="status"></div><div class="status-detail"></div></div>
+			<div class="cell">
+				<select class="limit-choice">
+					<option value="" data-i18n="phSelectMailboxSize">Choose size…</option>
+					<option value="1">1 GB</option><option value="2">2 GB</option><option value="5">5 GB</option>
+					<option value="10">10 GB</option><option value="15">15 GB</option><option value="50">50 GB</option>
+					<option value="custom" data-i18n="optCustomMailboxSize">Other size…</option>
+				</select>
+				<input class="limit-custom" type="text" inputmode="decimal" data-i18n-placeholder="phExampleNumber" hidden>
+			</div>
+			<div class="cell">
+				<select class="threshold">
+					<option value="50">50%</option><option value="60">60%</option><option value="70">70%</option>
+					<option value="80">80%</option><option value="90">90%</option><option value="95">95%</option>
+				</select>
+			</div>
+			<div class="cell"><button class="btn check-row" type="button" data-i18n="btnCheck">Check now</button></div>
+		</div>
+	</template>
 	<script src="options.js"></script>
 </body>
 </html>

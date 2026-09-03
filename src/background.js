@@ -1,41 +1,49 @@
 /* global browser */
-/**
- * Mailbox Full Alert (quota warning) - MFA
- * - Per-account mailbox size (GB) and warning threshold (%)
- * - Local sum of all messages across folders
- * - Checks on startup and via browser.alarms (user-configurable; 0 disables)
- * - Toolbar badge shows percentage of the most critical account
- * - Tooltip shows only the account name
- * - Options page can trigger single-account checks
- */
 
-/* ===========================
-* Defaults & keys (constants)
-* =========================== */
-const MFA_DEFAULT_CHECK_INTERVAL_MIN = 360;     // default 6 hours
-const MFA_DEFAULT_THRESHOLD_PCT = 80;      // default warning threshold
+const MFA_DEFAULT_CHECK_INTERVAL_MIN = 360;
+const MFA_DEFAULT_THRESHOLD_PCT = 80;
 const MFA_NOTIFY_STATE_KEY_PREFIX = 'MFA_lastNotifiedPct_';
 const MFA_GLOBAL_INTERVAL_KEY = 'MFA_globalIntervalMin';
-
-/* stable notification ids per account */
+const MFA_ACCOUNT_STATUS_KEY = 'MFA_accountStatus';
+const MFA_SHOW_ONBOARDING_KEY = 'MFA_showOnboarding';
 const MFA_NOTIFICATION_ID_PREFIX = 'quota-';
+const MFA_ALARM_NAME = 'quota-check';
 
-/* ===========================
-* Utils
-* =========================== */
+let operationQueue = Promise.resolve();
 
-/** Format bytes to human readable string */
-async function formatBytes(bytes) {
-	return await browser.messengerUtilities.formatFileSize(bytes);
+function formatBytes(bytes) {
+	let value = Number(bytes) || 0;
+	let unit = 'byte';
+	let divisor = 1;
+
+	if (value >= 1024 ** 3) {
+		unit = 'gigabyte';
+		divisor = 1024 ** 3;
+	} else if (value >= 1024 ** 2) {
+		unit = 'megabyte';
+		divisor = 1024 ** 2;
+	} else if (value >= 1024) {
+		unit = 'kilobyte';
+		divisor = 1024;
+	}
+
+	try {
+		return new Intl.NumberFormat(browser.i18n.getUILanguage(), {
+			style: 'unit', unit, unitDisplay: 'short',
+			maximumFractionDigits: divisor === 1 ? 0 : 1
+		}).format(value / divisor);
+	} catch (error) {
+		let labels = { byte: 'B', kilobyte: 'KB', megabyte: 'MB', gigabyte: 'GB' };
+		return `${(value / divisor).toFixed(divisor === 1 ? 0 : 1)} ${labels[unit]}`;
+	}
 }
 
-/** Sum sizes of all messages in a folder (handles pagination) */
 async function sumFolderMessagesSize(folder) {
 	let total = 0;
 	let page = await browser.messages.list(folder);
 	while (true) {
-		for (let msg of page.messages) {
-			if (typeof msg.size === 'number') total += msg.size;
+		for (let message of page.messages) {
+			if (typeof message.size === 'number') total += message.size;
 		}
 		if (!page.id) break;
 		page = await browser.messages.continueList(page.id);
@@ -43,282 +51,279 @@ async function sumFolderMessagesSize(folder) {
 	return total;
 }
 
-/** Sum all folders of an account */
 async function sumAccountBytes(accountId) {
-	let account = await browser.accounts.get(accountId, true); // include subfolders
-	if (!account || !account.rootFolder) return 0;
-
+	let account = await browser.accounts.get(accountId, true);
+	if (!account?.rootFolder) return 0;
 	let total = 0;
 	async function walk(folder) {
 		total += await sumFolderMessagesSize(folder);
-		if (Array.isArray(folder.subFolders) && folder.subFolders.length) {
-			for (let child of folder.subFolders) await walk(child);
-		} else {
-			let children = await browser.folders.getSubFolders(folder);
-			for (let child of children) await walk(child);
-		}
+		let children = Array.isArray(folder.subFolders)
+			? folder.subFolders
+			: await browser.folders.getSubFolders(folder);
+		for (let child of children) await walk(child);
 	}
 	await walk(account.rootFolder);
 	return total;
 }
 
-/* ===========================
-* Storage helpers
-* =========================== */
-
 async function getPerAccountConfig() {
 	let { perAccount = {} } = await browser.storage.local.get({ perAccount: {} });
-	return perAccount; // { [id]: { active:boolean, limitBytes:number, thresholdPct:number } }
+	return perAccount;
 }
 
-async function setPerAccountConfig(perAccount) {
-	await browser.storage.local.set({ perAccount });
+async function getAccountStatus() {
+	let result = await browser.storage.local.get({ [MFA_ACCOUNT_STATUS_KEY]: {} });
+	return result[MFA_ACCOUNT_STATUS_KEY] || {};
 }
 
 async function getGlobalIntervalMin() {
-	let obj = await browser.storage.local.get({ [MFA_GLOBAL_INTERVAL_KEY]: MFA_DEFAULT_CHECK_INTERVAL_MIN });
-	let val = obj[MFA_GLOBAL_INTERVAL_KEY];
-	return Number.isFinite(val) ? val : MFA_DEFAULT_CHECK_INTERVAL_MIN;
+	let result = await browser.storage.local.get({ [MFA_GLOBAL_INTERVAL_KEY]: MFA_DEFAULT_CHECK_INTERVAL_MIN });
+	let value = result[MFA_GLOBAL_INTERVAL_KEY];
+	return Number.isFinite(value) ? value : MFA_DEFAULT_CHECK_INTERVAL_MIN;
 }
 
-async function setGlobalIntervalMin(minutes) {
-	await browser.storage.local.set({ [MFA_GLOBAL_INTERVAL_KEY]: minutes });
-}
-
-/* ===========================
-* Notifications & UI badge
-* =========================== */
-
-function getNotificationId(accountId) {
+function notificationId(accountId) {
 	return `${MFA_NOTIFICATION_ID_PREFIX}${accountId}`;
+}
+
+function isMonitoringActive(account, config) {
+	if (typeof config.active === 'boolean') return config.active;
+	return account.type === 'imap';
 }
 
 async function clearNotification(accountId) {
 	try {
-		await browser.notifications.clear(getNotificationId(accountId));
-	} catch (e) {
-		// ignore
+		await browser.notifications.clear(notificationId(accountId));
+	} catch (error) {
+		console.error('[MFA] Could not clear notification', accountId, error);
 	}
 }
 
-async function notify(account, used, limit, pctUsed, threshold) {
+async function showNotification(account, used, limit, pctUsed, threshold) {
 	let title = browser.i18n.getMessage('notifyTitle', account.name || account.id);
 	let line1 = browser.i18n.getMessage('notifyLineUsed', [
-		await formatBytes(used),
-		await formatBytes(limit),
-		pctUsed.toFixed(1)
+		formatBytes(used), formatBytes(limit), pctUsed.toFixed(1)
 	]);
 	let line2 = browser.i18n.getMessage('notifyLineThreshold', [`${threshold}%`]);
-
-	// use a stable id so repeated notifications for the same account replace each other
-	await browser.notifications.create(getNotificationId(account.id), {
-		type: 'basic',
-		iconUrl: 'icons/icon-96.png',
-		title,
+	await browser.notifications.create(notificationId(account.id), {
+		type: 'basic', iconUrl: 'icons/icon-96.png', title,
 		message: `${line1}\n${line2}`
 	});
 }
 
-/** Set toolbar badge + title */
-async function setBadge(percent, accountName) {
-	if (percent != null) {
-		await browser.browserAction.setBadgeText({ text: `${percent}%` });
-		try { await browser.browserAction.setBadgeBackgroundColor({ color: '#d93025' }); } catch { }
-		await browser.browserAction.setTitle({ title: accountName || browser.i18n.getMessage('extShortName') || 'MFA' });
-	} else {
-		await browser.browserAction.setBadgeText({ text: '' });
-		await browser.browserAction.setTitle({ title: browser.i18n.getMessage('extShortName') || 'MFA' });
+async function updateBadge(accounts, perAccount, statuses) {
+	let critical = [];
+	let incomplete = [];
+	for (let account of accounts) {
+		let config = perAccount[account.id] || {};
+		let active = isMonitoringActive(account, config);
+		let limit = Number(config.limitBytes || 0);
+		if (!active) continue;
+		if (!(limit > 0)) {
+			incomplete.push(account);
+			continue;
+		}
+		let status = statuses[account.id];
+		let threshold = Number.isFinite(config.thresholdPct) ? config.thresholdPct : MFA_DEFAULT_THRESHOLD_PCT;
+		if (status && Number(status.pctUsed) >= threshold) {
+			critical.push({ account, percent: Math.floor(Number(status.pctUsed)) });
+		}
 	}
+
+	if (critical.length) {
+		critical.sort((a, b) => b.percent - a.percent);
+		let top = critical[0];
+		let badgeText = top.percent > 999 ? '999+' : `${top.percent}%`;
+		await browser.browserAction.setBadgeText({ text: badgeText });
+		await browser.browserAction.setBadgeBackgroundColor({ color: '#c62828' });
+		await browser.browserAction.setTitle({ title: top.account.name || top.account.id });
+		return;
+	}
+
+	if (incomplete.length) {
+		await browser.browserAction.setBadgeText({ text: '!' });
+		await browser.browserAction.setBadgeBackgroundColor({ color: '#e6a700' });
+		await browser.browserAction.setTitle({
+			title: browser.i18n.getMessage('badgeSetupTitle', String(incomplete.length)) || 'Setup required'
+		});
+		return;
+	}
+
+	await browser.browserAction.setBadgeText({ text: '' });
+	await browser.browserAction.setTitle({ title: browser.i18n.getMessage('extShortName') || 'MFA' });
 }
 
-/* ===========================
-* Core check
-* =========================== */
+function buildUsageSnapshot(accounts, perAccount, statuses) {
+	return accounts.map(account => {
+		let config = perAccount[account.id] || {};
+		let status = statuses[account.id] || {};
+		return {
+			id: account.id,
+			name: account.name || account.id,
+			type: account.type || '',
+			active: isMonitoringActive(account, config),
+			limitBytes: Number(config.limitBytes || 0),
+			thresholdPct: Number.isFinite(config.thresholdPct) ? config.thresholdPct : MFA_DEFAULT_THRESHOLD_PCT,
+			usedBytes: Number(status.usedBytes || 0),
+			pctUsed: Number(status.pctUsed || 0),
+			checkedAt: Number(status.checkedAt || 0),
+			error: status.error || ''
+		};
+	});
+}
 
-async function checkAllAccounts({ forceNotify = false, onlyAccountId = null } = {}) {
+async function performCheck({ onlyAccountId = null } = {}) {
 	let accounts = await browser.accounts.list();
 	let perAccount = await getPerAccountConfig();
+	let statuses = await getAccountStatus();
+	let existingIds = new Set(accounts.map(account => account.id));
+	for (let accountId of Object.keys(statuses)) {
+		if (!existingIds.has(accountId)) delete statuses[accountId];
+	}
 
-	let topBadgeAccountName = null;
-	let topBadgePercent = -1;
+	for (let account of accounts) {
+		if (onlyAccountId && account.id !== onlyAccountId) continue;
+		let config = perAccount[account.id] || {};
+		let active = isMonitoringActive(account, config);
+		let limit = Number(config.limitBytes || 0);
+		let threshold = Number.isFinite(config.thresholdPct) ? config.thresholdPct : MFA_DEFAULT_THRESHOLD_PCT;
+		let notifyKey = `${MFA_NOTIFY_STATE_KEY_PREFIX}${account.id}`;
 
-	for (let acc of accounts) {
-		if (onlyAccountId && acc.id !== onlyAccountId) continue;
-
-		let conf = perAccount[acc.id] || {};
-		let active = conf.active !== false; // default active
-		let limit = Number(conf.limitBytes || 0);
-		let threshold = Number.isFinite(conf.thresholdPct) ? conf.thresholdPct : MFA_DEFAULT_THRESHOLD_PCT;
-
-		// If monitoring is disabled or no limit is set, ensure we don't keep stale notifications around
-		if (!active || !limit || limit <= 0) {
-			await clearNotification(acc.id);
-
-			// Also reset lastPct so re-enabling can notify again on a fresh "cross up"
-			let key = `${MFA_NOTIFY_STATE_KEY_PREFIX}${acc.id}`;
-			try { await browser.storage.local.set({ [key]: 0 }); } catch (e) { /* ignore */ }
-
+		if (!active || !(limit > 0)) {
+			delete statuses[account.id];
+			await clearNotification(account.id);
+			await browser.storage.local.set({ [notifyKey]: 0 });
 			continue;
 		}
 
-		let used = 0;
-		try { used = await sumAccountBytes(acc.id); }
-		catch (e) { console.error('Summation failed for account', acc.id, e); continue; }
-
-		let pctUsed = (used / limit) * 100;
-		let key = `${MFA_NOTIFY_STATE_KEY_PREFIX}${acc.id}`;
-		let st = await browser.storage.local.get({ [key]: 0 });
-		let lastPct = st[key];
-		let crossedUp = pctUsed >= threshold && lastPct < threshold;
-
-		// If no longer critical, clear any existing notification for this account
-		if (pctUsed < threshold) {
-			await clearNotification(acc.id);
+		try {
+			let used = await sumAccountBytes(account.id);
+			let pctUsed = (used / limit) * 100;
+			let previous = await browser.storage.local.get({ [notifyKey]: 0 });
+			let lastPct = Number(previous[notifyKey] || 0);
+			let crossedThreshold = pctUsed >= threshold && lastPct < threshold;
+			if (pctUsed < threshold) await clearNotification(account.id);
+			if (crossedThreshold) await showNotification(account, used, limit, pctUsed, threshold);
+			statuses[account.id] = {
+				usedBytes: used,
+				pctUsed: Math.round(pctUsed * 10) / 10,
+				checkedAt: Date.now(), error: ''
+			};
+			await browser.storage.local.set({ [notifyKey]: Math.round(pctUsed * 10) / 10 });
+		} catch (error) {
+			console.error('[MFA] Check failed for account', account.id, error);
+			statuses[account.id] = {
+				...(statuses[account.id] || {}),
+				error: String(error?.message || error)
+			};
 		}
-
-		if (pctUsed >= threshold) {
-			let floored = Math.floor(pctUsed);
-			if (floored > topBadgePercent) {
-				topBadgePercent = floored;
-				topBadgeAccountName = acc.name || acc.id;
-			}
-		}
-
-		// Notify only on threshold crossing (normal) OR forced notify while still over threshold
-		if (crossedUp || (forceNotify && pctUsed >= threshold)) {
-			await notify(acc, used, limit, pctUsed, threshold);
-		}
-
-		let storePct = Math.round(pctUsed * 10) / 10;
-		await browser.storage.local.set({ [key]: storePct });
 	}
 
-	await setBadge(topBadgePercent >= 0 ? topBadgePercent : null, topBadgeAccountName);
+	await browser.storage.local.set({ [MFA_ACCOUNT_STATUS_KEY]: statuses });
+	await updateBadge(accounts, perAccount, statuses);
+	return buildUsageSnapshot(accounts, perAccount, statuses);
 }
 
-/** Build a usage snapshot for the options page */
-async function getAccountsUsageSnapshot() {
+function queueOperation(task) {
+	let queued = operationQueue.then(task);
+	operationQueue = queued.catch(() => {});
+	return queued;
+}
+
+function queueCheck(options = {}) {
+	return queueOperation(() => performCheck(options));
+}
+
+async function saveAccountsConfig(nextPartial) {
+	let current = await getPerAccountConfig();
+	let statuses = await getAccountStatus();
+	for (let [accountId, next] of Object.entries(nextPartial || {})) {
+		let previous = current[accountId] || {};
+		let normalized = {
+			active: next.active !== false,
+			limitBytes: Math.max(0, Number(next.limitBytes || 0)),
+			thresholdPct: Number.isFinite(next.thresholdPct) ? next.thresholdPct : MFA_DEFAULT_THRESHOLD_PCT
+		};
+		current[accountId] = { ...previous, ...normalized };
+		let monitoringChanged = Number(previous.limitBytes || 0) !== normalized.limitBytes || previous.active !== normalized.active;
+		let thresholdChanged = Number(previous.thresholdPct || MFA_DEFAULT_THRESHOLD_PCT) !== normalized.thresholdPct;
+		if (monitoringChanged) {
+			delete statuses[accountId];
+		}
+		if (monitoringChanged || thresholdChanged) {
+			await clearNotification(accountId);
+			await browser.storage.local.set({ [`${MFA_NOTIFY_STATE_KEY_PREFIX}${accountId}`]: 0 });
+		}
+	}
+	await browser.storage.local.set({ perAccount: current, [MFA_ACCOUNT_STATUS_KEY]: statuses });
 	let accounts = await browser.accounts.list();
-	let perAccount = await getPerAccountConfig();
-	let out = [];
-
-	for (let acc of accounts) {
-		let conf = perAccount[acc.id] || {};
-		let active = conf.active !== false;
-		let limit = Number(conf.limitBytes || 0);
-		let threshold = Number.isFinite(conf.thresholdPct) ? conf.thresholdPct : MFA_DEFAULT_THRESHOLD_PCT;
-
-		let used = 0;
-		if (limit > 0) {
-			try { used = await sumAccountBytes(acc.id); }
-			catch (e) { console.error('Summation failed for account', acc.id, e); }
-		}
-		let pctUsed = limit > 0 ? (used / limit) * 100 : 0;
-
-		out.push({
-			id: acc.id,
-			name: acc.name || acc.id,
-			active,
-			limitBytes: limit,
-			thresholdPct: threshold,
-			usedBytes: used,
-			pctUsed: pctUsed
-		});
-	}
-	return out;
+	await updateBadge(accounts, current, statuses);
+	return buildUsageSnapshot(accounts, current, statuses);
 }
-
-/* ===========================
-* Scheduling
-* =========================== */
 
 async function scheduleChecksFromSettings() {
 	try {
 		let minutesRaw = await getGlobalIntervalMin();
-		await browser.alarms.clear('quota-check');
-
+		await browser.alarms.clear(MFA_ALARM_NAME);
 		let minutes = Math.max(0, Math.floor(Number(minutesRaw) || 0));
-		if (minutes === 0) return;
-
-		let period = Math.max(1, minutes); // alarms require >= 1 minute
-		await browser.alarms.create('quota-check', { periodInMinutes: period });
-	} catch (e) {
-		console.error('[MFA] Failed to schedule checks', e);
+		if (minutes > 0) {
+			await browser.alarms.create(MFA_ALARM_NAME, { periodInMinutes: Math.max(1, minutes) });
+		}
+	} catch (error) {
+		console.error('[MFA] Failed to schedule checks', error);
 	}
 }
 
-/* ===========================
-* Lifecycle & events
-* =========================== */
-
-browser.runtime.onInstalled.addListener(async () => {
+browser.runtime.onInstalled.addListener(async details => {
+	if (details.reason === 'install') {
+		await browser.storage.local.set({ [MFA_SHOW_ONBOARDING_KEY]: true });
+		await browser.runtime.openOptionsPage();
+	} else {
+		let stored = await browser.storage.local.get(MFA_SHOW_ONBOARDING_KEY);
+		if (!(MFA_SHOW_ONBOARDING_KEY in stored)) {
+			await browser.storage.local.set({ [MFA_SHOW_ONBOARDING_KEY]: false });
+		}
+	}
 	await scheduleChecksFromSettings();
-	checkAllAccounts().catch(console.error);
+	queueCheck().catch(console.error);
 });
 
 browser.runtime.onStartup.addListener(async () => {
 	await scheduleChecksFromSettings();
-	checkAllAccounts().catch(console.error);
+	queueCheck().catch(console.error);
 });
 
-browser.alarms.onAlarm.addListener((alarm) => {
-	if (alarm.name === 'quota-check') {
-		// Always force notify on scheduled checks
-		checkAllAccounts({ forceNotify: true }).catch(console.error);
-	}
+browser.alarms.onAlarm.addListener(alarm => {
+	if (alarm.name === MFA_ALARM_NAME) queueCheck().catch(console.error);
 });
 
-/** Toolbar click opens options page */
-browser.browserAction.onClicked.addListener(() => {
-	browser.runtime.openOptionsPage();
-});
+browser.browserAction.onClicked.addListener(() => browser.runtime.openOptionsPage());
 
-/* ===========================
-* Messaging for options page
-* =========================== */
-
-browser.runtime.onMessage.addListener(async (msg) => {
-	if (msg?.type === 'getAccountsState') {
+browser.runtime.onMessage.addListener(async message => {
+	if (message?.type === 'getAccountsState') {
 		let accounts = await browser.accounts.list();
-		let conf = await getPerAccountConfig();
-		return accounts.map(a => ({
-			id: a.id,
-			name: a.name,
-			active: conf[a.id]?.active !== false,
-			limitBytes: conf[a.id]?.limitBytes || 0,
-			thresholdPct: Number.isFinite(conf[a.id]?.thresholdPct) ? conf[a.id].thresholdPct : MFA_DEFAULT_THRESHOLD_PCT
-		}));
+		return buildUsageSnapshot(accounts, await getPerAccountConfig(), await getAccountStatus());
 	}
-
-	if (msg?.type === 'getAccountsUsage') {
-		let snap = await getAccountsUsageSnapshot();
-		return snap;
+	if (message?.type === 'saveAccountsConfig') {
+		return { ok: true, usage: await queueOperation(() => saveAccountsConfig(message.payload || {})) };
 	}
-
-	if (msg?.type === 'saveAccountsConfig') {
-		let nextPartial = msg.payload || {};
-		let current = await getPerAccountConfig();
-		let merged = { ...current, ...nextPartial };
-		await setPerAccountConfig(merged);
+	if (message?.type === 'runCheckNow') {
+		return { ok: true, usage: await queueCheck({ onlyAccountId: message.accountId || null }) };
+	}
+	if (message?.type === 'getGlobalSettings') {
+		let result = await browser.storage.local.get({ [MFA_SHOW_ONBOARDING_KEY]: false });
+		return {
+			intervalMin: await getGlobalIntervalMin(),
+			showOnboarding: result[MFA_SHOW_ONBOARDING_KEY] === true
+		};
+	}
+	if (message?.type === 'dismissOnboarding') {
+		await browser.storage.local.set({ [MFA_SHOW_ONBOARDING_KEY]: false });
 		return { ok: true };
 	}
-
-	if (msg?.type === 'runCheckNow') {
-		await checkAllAccounts({
-			forceNotify: msg.force === true,
-			onlyAccountId: msg.accountId || null
-		});
-		return { ok: true };
-	}
-
-	if (msg?.type === 'getGlobalSettings') {
-		let intervalMin = await getGlobalIntervalMin();
-		return { intervalMin };
-	}
-
-	if (msg?.type === 'saveGlobalSettingsMinutes') {
-		let minutes = Math.max(0, Math.floor(Number(msg.intervalMin) || 0));
-		await setGlobalIntervalMin(minutes);
+	if (message?.type === 'saveGlobalSettingsMinutes') {
+		let minutes = Math.max(0, Math.floor(Number(message.intervalMin) || 0));
+		await browser.storage.local.set({ [MFA_GLOBAL_INTERVAL_KEY]: minutes });
 		await scheduleChecksFromSettings();
 		return { ok: true, intervalMin: minutes };
 	}
