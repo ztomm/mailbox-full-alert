@@ -4,13 +4,15 @@
 
 **Measure mailbox usage in Thunderbird and get warned before your email storage is full.**
 
-Mailbox Full Alert is intended for email providers that do not report a usable server-side mailbox limit to Thunderbird. You enter the total mailbox capacity supplied by the provider once. The add-on then measures the combined size of the messages Thunderbird knows for that account and compares it with your selected warning level.
+Thunderbird does not know your mailbox size. Enter it once and Mailbox Full Alert automatically measures your email storage usage and warns you before the mailbox is full.
+
+Requires **Thunderbird 140.0 ESR or later**.
 
 ## How it works
 
-1. Find the total mailbox capacity in your provider's customer portal, help pages or webmail.
-2. Enter that size for the account in the add-on settings.
-3. Choose a warning level and run the first check.
+1. Choose an automatic check interval.
+2. Select the mailboxes you want to monitor.
+3. Enter the mailbox size and run the first check.
 
 The add-on checks on Thunderbird startup, at a configurable interval, or on demand. A red percentage remains on the toolbar button until a later check finds that usage is below the warning level. A yellow `!` means that an active account still needs a mailbox size.
 
@@ -34,4 +36,4 @@ All processing stays inside Thunderbird. The add-on does not send message conten
 
 Download the add-on from [Thunderbird Add-ons](https://addons.thunderbird.net/thunderbird/addon/mailbox-full-alert/).
 
-Thanks to [Topoldo](https://github.com/topoldo) for improving the Italian translation.
+Thanks to [Topoldo](https://github.com/topoldo) for contributions to the Italian localization.
